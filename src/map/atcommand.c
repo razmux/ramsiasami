@@ -49,6 +49,7 @@
 #include "pc.h"
 #include "achievement.h"
 #include "faction.h"
+#include "oboro.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -1215,14 +1216,16 @@ ACMD_FUNC(heal)
 	return 0;
 }
 
+
 /*==========================================
  * @item command (usage: @item <itemdid1:itemid2:itemname:..> <quantity>) (modified by [Yor] for pet_egg)
  * @itembound command (usage: @itembound <name/id_of_item> <quantity> <bound_type>)
+ * eAmod CostumeItem Fix [Isaac] Oboro CP
  *------------------------------------------*/
 ACMD_FUNC(item)
 {
 	char item_name[100];
-	int number = 0, bound = BOUND_NONE;
+	int number = 0, bound = BOUND_NONE, costume = 0;
 	char flag = 0;
 	struct item item_tmp;
 	struct item_data *item_data[10];
@@ -1234,7 +1237,8 @@ ACMD_FUNC(item)
 
 	parent_cmd = atcommand_checkalias(command+1);
 
-	if (!strcmpi(parent_cmd,"itembound")) {
+	if (!strcmpi(parent_cmd,"itembound")) 
+	{
 		if (!message || !*message || (
 			sscanf(message, "\"%99[^\"]\" %11d %11d", item_name, &number, &bound) < 3 &&
 			sscanf(message, "%99s %11d %11d", item_name, &number, &bound) < 3))
@@ -1247,13 +1251,33 @@ ACMD_FUNC(item)
 			clif_displaymessage(fd, msg_txt(sd,298)); // Invalid bound type
 			return -1;
 		}
-	} else if (!message || !*message || (
+	}
+	else if( !strcmpi(parent_cmd,"costumeitem") )
+	{
+		if( !battle_config.costume_reserved_char_id )
+		{
+			clif_displaymessage(fd, "Costume convertion is disable. Set a value for costume_reserved_char_id on your eAmod.conf file.");
+			return -1;
+		}
+		
+		if (!message || !*message || (
+			sscanf(message, "\"%99[^\"]\" %11d", item_name, &number) < 1 &&
+			sscanf(message, "%99s %11d", item_name, &number) < 1)
+		){
+			clif_displaymessage(fd, "Please enter an item name or ID (usage: @costumeitem <item name/ID> <quantity>).");
+			return -1;
+		}
+		costume = 1;
+	}
+	else if (!message || !*message || (
 		sscanf(message, "\"%99[^\"]\" %11d", item_name, &number) < 1 &&
 		sscanf(message, "%99s %11d", item_name, &number) < 1
-	)) {
+	)) 
+	{
 		clif_displaymessage(fd, msg_txt(sd,983)); // Please enter an item name or ID (usage: @item <item name/ID> <quantity>).
 		return -1;
 	}
+	
 	itemlist = strtok(item_name, ":");
 	while (itemlist != NULL && j<10) {
 		if ((item_data[j] = itemdb_searchname(itemlist)) == NULL &&
@@ -1269,19 +1293,27 @@ ACMD_FUNC(item)
 		number = 1;
 	get_count = number;
 
-	for(j--; j>=0; j--){ //produce items in list
+	for(j--; j>=0; j--)
+	{ //produce items in list
 		unsigned short item_id = item_data[j]->nameid;
 		//Check if it's stackable.
 		if (!itemdb_isstackable2(item_data[j]))
 			get_count = 1;
 
-		for (i = 0; i < number; i += get_count) {
+		for (i = 0; i < number; i += get_count) 
+		{
 			// if not pet egg
 			if (!pet_create_egg(sd, item_id)) {
 				memset(&item_tmp, 0, sizeof(item_tmp));
 				item_tmp.nameid = item_id;
 				item_tmp.identify = 1;
 				item_tmp.bound = bound;
+				if( costume == 1 )
+				{ // Costume Item
+					item_tmp.card[0] = CARD0_CREATE;
+					item_tmp.card[2] = GetWord(battle_config.costume_reserved_char_id, 0);
+					item_tmp.card[3] = GetWord(battle_config.costume_reserved_char_id, 1);
+				}
 				if ((flag = pc_additem(sd, &item_tmp, get_count, LOG_TYPE_COMMAND)))
 					clif_additem(sd, 0, 0, flag);
 			}
@@ -1292,7 +1324,6 @@ ACMD_FUNC(item)
 		clif_displaymessage(fd, msg_txt(sd,18)); // Item created.
 	return 0;
 }
-
 /*==========================================
  *
  *------------------------------------------*/
@@ -1913,12 +1944,12 @@ ACMD_FUNC(go)
 		{ MAP_NIFLHEIM,     21, 153 }, // 13=Niflheim
 		{ MAP_LOUYANG,     217,  40 }, // 14=Louyang
 #ifdef RENEWAL
-		{ MAP_NOVICE,       97, 90  }, // 15=Training Grounds (Renewal)
+		{ MAP_NOVICE,       52, 35  }, // 15=Training Grounds (Renewal)
 #else
-		{ MAP_NOVICE,       53, 111 }, // 15=Training Grounds
+		{ MAP_NOVICE,       52, 35 }, // 15=Training Grounds
 #endif
 		{ MAP_JAIL,         23,  61 }, // 16=Prison
-		{ MAP_JAWAII,      249, 127 }, // 17=Jawaii
+		{ MAP_JAWAII,      216, 231 }, // 17=Jawaii
 		{ MAP_AYOTHAYA,    151, 117 }, // 18=Ayothaya
 		{ MAP_EINBROCH,     64, 200 }, // 19=Einbroch
 		{ MAP_LIGHTHALZEN, 158,  92 }, // 20=Lighthalzen
@@ -1937,6 +1968,10 @@ ACMD_FUNC(go)
 		{ MAP_MALANGDO,    140, 114 }, // 33=Malangdo Island
 		{ MAP_MALAYA,      242, 211 }, // 34=Malaya Port
 		{ MAP_ECLAGE,      110,  39 }, // 35=Eclage
+		{ MAP_MERCADOCASH,  179,  81},  // 36
+		{ MAP_MERCADOZENY,  100, 13 },  // 37
+		{ MAP_MERCADONPC,  151, 166 },  // 38
+		{ MAP_ZONAJUEGOS,  15, 116  },  // 39
 	};
 
 	nullpo_retr(-1, sd);
@@ -2016,9 +2051,7 @@ ACMD_FUNC(go)
 		town = 13;
 	} else if (strncmp(map_name, "louyang", 3) == 0) {
 		town = 14;
-	} else if (strncmp(map_name, "new_1-1", 3) == 0 ||
-	           strncmp(map_name, "startpoint", 3) == 0 ||
-	           strncmp(map_name, "beginning", 3) == 0) {
+	} else if (strncmp(map_name, "novice", 3) == 0) {
 		town = 15;
 	} else if (strncmp(map_name, "sec_pri", 3) == 0 ||
 	           strncmp(map_name, "prison", 3) == 0 ||
@@ -2062,6 +2095,14 @@ ACMD_FUNC(go)
 		town = 34;
 	} else if (strncmp(map_name, "eclage", 3) == 0) {
 		town = 35;
+	} else if (strncmp(map_name, "Mercado Cash", 3) == 0) {
+		town = 36;
+	} else if (strncmp(map_name, "Mercado Zeny", 3) == 0) {
+		town = 37;
+	} else if (strncmp(map_name, "Mercado npc", 3) == 0) {
+		town = 38;
+	} else if (strncmp(map_name, "Sala de juegos", 3) == 0) {
+		town = 39;
 	}
 
 	if (town >= 0 && town < ARRAYLENGTH(data))
@@ -9720,8 +9761,10 @@ ACMD_FUNC(myinfo)
 	} output_table[] = {
 		{ "Cash Points - %d", 0 },
 		{ "Free/Kafra Points - %d", 0 },
-		{ NULL, 0 },
-		{ NULL, 0 },
+		{ "BattleGround Points - %d", 0 },
+		{ "Vote Points - %d", 0 },
+		{ "Dona Points - %d", 0 },
+
 		{ NULL, 0 }
 	};
 
@@ -9732,10 +9775,12 @@ ACMD_FUNC(myinfo)
 	output_table[1].value = sd->kafraPoints;
 	if( battle_config.myinfo_event_vote_points )
 	{
-		output_table[2].format = "Event Points - %d";
-		output_table[2].value = pc_readaccountreg(sd,add_str("#EVENTPOINTS"));
-		output_table[3].format = "Vote Points - %d";
-		output_table[3].value = pc_readaccountreg(sd,add_str("#VOTEPOINTS"));
+	output_table[0].value = sd->cashPoints;
+	output_table[1].value = sd->kafraPoints;
+	output_table[2].value = pc_readaccountreg(sd,add_str("#BGPOINTS"));
+	output_table[3].value = pc_readaccountreg(sd,add_str("#VOTEPOINTS"));
+	output_table[3].value = pc_readaccountreg(sd,add_str("#DONAPOINTS"));
+
 	}
 
 	sprintf(output, "'%s' Info:", sd->status.name); // '%s' stats:
@@ -11718,6 +11763,941 @@ ACMD_FUNC(adopt)
 	return -1;
 }
 
+ACMD_FUNC(dance) 
+{
+   nullpo_retr(-1, sd);
+
+	if (!message || !*message || atoi(message) > 9 || atoi(message) < 1 ) {
+		clif_displaymessage(fd, "@dance (1/9)");
+		return -1;
+	}
+	switch ( atoi(message) ) {
+		case 1: clif_specialeffect(&sd->bl, 413, ALL_CLIENT); break;
+		case 2: clif_specialeffect(&sd->bl, 414, ALL_CLIENT); break;
+		case 3: clif_specialeffect(&sd->bl, 415, ALL_CLIENT); break;
+		case 4: clif_specialeffect(&sd->bl, 426, ALL_CLIENT); break;
+		case 5: clif_specialeffect(&sd->bl, 458, ALL_CLIENT); break;
+		case 6: clif_specialeffect(&sd->bl, 466, ALL_CLIENT); break;
+		case 7: clif_specialeffect(&sd->bl, 501, ALL_CLIENT); break;
+		case 8: clif_specialeffect(&sd->bl, 540, ALL_CLIENT); break;
+		case 9: clif_specialeffect(&sd->bl, 550, ALL_CLIENT); break;
+	}
+   return 0;
+}
+
+
+/**
+ *	OBORO CONTROL PANEL
+ *	NANOSOFT (C)
+ *	@securityinfo
+ */
+ACMD_FUNC(securityinfo) 
+{
+	char output[CHAT_SIZE_MAX];
+	int value;	
+	memset(output, '\0', sizeof(output));
+
+	value = pc_readaccountreg(sd,add_str("#SECURITYCODE")); 
+	sprintf(output,"The Access security  is: %d",value);
+	clif_displaymessage(fd,output);
+	return 0;
+}
+
+/**
+ *	OBORO CONTROL PANEL
+ *	NANOSOFT (C)
+ *	@bgpoints <quantity>
+ */
+ACMD_FUNC(bgpoints) 
+{
+	char output[CHAT_SIZE_MAX];
+	int value, cantidad;
+	memset(output, '\0', sizeof(output));
+	
+	if( !message || !*message || sscanf(message, "%d", &cantidad) < 1 ) 
+	{
+		clif_displaymessage(fd, "@bgpoints <(+/-)quantity>");
+		return -1;
+	}
+
+	value = pc_readaccountreg(sd, add_str("#BGPOINTS"));
+	if ( abs(cantidad) > value && cantidad < 0 ) 
+	{
+		sprintf(output,"%s only have %d Bgpoints, value updated to -%d",sd->status.name,value,value);
+		clif_displaymessage(fd,output);
+		clif_displaymessage(fd,output);
+		cantidad = (-1)*value;
+	}
+
+	pc_setaccountreg(sd, add_str("#BGPOINTS"),  (value + cantidad));
+	clif_displaymessage( fd,"[Battle Ground]: Points updated, @myinfo for more information");
+	return 0;
+}
+
+/**
+ *	OBORO CONTROL PANEL
+ *	NANOSOFT (C)
+ *	@bgpoints <quantity>
+ */
+ACMD_FUNC(votepoints) 
+{
+	char output[CHAT_SIZE_MAX];
+	int value, cantidad;
+	memset(output, '\0', sizeof(output));
+	
+	if( !message || !*message || sscanf(message, "%d", &cantidad) < 1 ) 
+	{
+		clif_displaymessage(fd, "@votepoints <(+/-)quantity>");
+		return -1;
+	}
+
+	value = pc_readaccountreg(sd, add_str("#VOTEPOINTS"));
+	if ( abs(cantidad) > value && cantidad < 0 ) 
+	{
+		sprintf(output,"%s only have %d vote points, value updated to -%d",sd->status.name,value,value);
+		clif_displaymessage(fd,output);
+		clif_displaymessage(fd,output);
+		cantidad = (-1)*value;
+	}
+
+	pc_setaccountreg(sd, add_str("#VOTEPOINTS"),  (value + cantidad));
+	clif_displaymessage( fd,"[Vote Points]: Updated, @myinfo for more information");
+	return 0;
+}
+
+ACMD_FUNC(donapoints) 
+{
+	char output[CHAT_SIZE_MAX];
+	int value, cantidad;
+	memset(output, '\0', sizeof(output));
+	
+	if( !message || !*message || sscanf(message, "%d", &cantidad) < 1 ) 
+	{
+		clif_displaymessage(fd, "@donapoints <(+/-)quantity>");
+		return -1;
+	}
+
+	value = pc_readaccountreg(sd, add_str("#DONAPOINTS"));
+	if ( abs(cantidad) > value && cantidad < 0 ) 
+	{
+		sprintf(output,"%s only have %d dona points, value updated to -%d",sd->status.name,value,value);
+		clif_displaymessage(fd,output);
+		clif_displaymessage(fd,output);
+		cantidad = (-1)*value;
+	}
+
+	pc_setaccountreg(sd, add_str("#DONAPOINTS"),  (value + cantidad));
+	clif_displaymessage( fd,"[Dona Points]: Updated, @myinfo for more information");
+	return 0;
+}
+
+
+/**
+ *	OBORO CONTROL PANEL
+ *	NANOSOFT (C)
+ *	@spb
+ */
+ACMD_FUNC(partybuff) 
+{
+	struct party_data* p = NULL;
+	nullpo_retr(-1, sd);
+
+    if( !sd->status.party_id ) 
+	{
+    	clif_displaymessage(fd, "You're not in a party.");
+    	return -1;
+    }
+
+	p = party_search(sd->status.party_id);
+
+	if( sd->state.spb ) 
+	{
+		sd->state.spb = 0;
+    	clif_displaymessage(fd, "Displaying party member's buffs disabled."); 
+	} 
+	else 
+	{
+		sd->state.spb = 1;
+    	clif_displaymessage(fd, "Displaying party member's buffs enabled.");
+	}
+
+	clif_party_info(p,sd);
+	return 0;
+}
+
+/**
+ *	OBORO CONTROL PANEL
+ *	NANOSOFT (C)
+ */
+ACMD_FUNC(wrestock) 
+{
+	int i = 0;
+	char display[100];
+	nullpo_retr(-1, sd);
+	
+	for ( i = 0; i < sizeof(struct RESTOCK); i++ ) 
+	{
+		if ( RESTOCK[i].item_id == 0 || RESTOCK[i].quantity == 0 || strlen(RESTOCK[i].item_name) < 2) 
+			continue;
+		else
+		{
+			sprintf(display,"[%s]: %d.", RESTOCK[i].item_name, RESTOCK[i].quantity);
+			clif_displaymessage(fd,display);
+		}
+	}
+	return 0;
+}
+
+/**
+ *	OBORO CONTROL PANEL
+ *	NANOSOFT (C)
+ */
+ACMD_FUNC(restock) 
+{
+	char output[CHAT_SIZE_MAX];
+	if ( !sd->state.restock ) 
+		sd->state.restock = 1;
+	else
+		sd->state.restock = 0;
+	strcpy(output ,(sd->state.restock? "Restock activated":"Restock disabled"));
+	clif_displaymessage(fd,output);
+	return 0;
+}
+
+/**
+ *	OBORO CONTROL PANEL
+ *	NANOSOFT (C)
+ */
+ACMD_FUNC(rrestock) 
+{
+	READ_RESTOCK();
+	clif_displaymessage(fd,"[Done]: Restock reloaded");
+	return 0;
+}
+
+/**
+ *	OBORO CONTROL PANEL
+ *	NANOSOFT (C)
+ */
+ACMD_FUNC(house) 
+{
+	int i;
+	char concatHouse[40], concatMap[40], concatHouseMB[40];
+	nullpo_retr(-1, sd);
+
+	if ( !sd->status.guild_id ) 
+	{
+		clif_displaymessage(fd,"You must have a guild with house");
+		return 0;
+	}
+
+	if( battle_config.pvpmode_nowarp_cmd && sd->state.pvpmode ) 
+	{
+		clif_displaymessage(sd->fd,"You can't use @house in pvp mode.");
+		return -1;
+	}
+
+	if( map[sd->bl.m].flag.nogo || map[sd->bl.m].flag.woe_set || map[sd->bl.m].flag.nowarpto || map[sd->bl.m].flag.battleground || map[sd->bl.m].flag.pvp ) 
+	{
+		clif_displaymessage(sd->fd,"You can't use @house in this map");
+		return 0;
+	}
+
+	for ( i = 0; i <= 30; i++ ) 
+	{
+		sprintf(concatHouse,"$GROOM%d",i);
+		sprintf(concatHouseMB,"$GROOMB%d",i);
+		sprintf(concatMap,"gr_%d",i);
+		if ( mapreg_readreg(add_str(concatHouse)) == sd->status.guild_id ) 
+		{
+			pc_setpos(sd,mapindex_name2id(concatMap),56,61,CLR_OUTSIGHT);
+			return 0;
+		} 
+		else if ( mapreg_readreg(add_str(concatHouseMB)) == sd->status.guild_id ) 
+		{
+			pc_setpos(sd,mapindex_name2id(concatMap),56,61,CLR_OUTSIGHT);
+			return 0;
+		}  
+	} 
+	clif_displaymessage(fd,"Your guild hasn't house");
+	return -1;
+}
+
+/**
+ *	OBORO CONTROL PANEL
+ *	NANOSOFT (C)
+ */
+ACMD_FUNC(transfer) 
+{
+	sub_transfer_init(sd);
+	return 0;
+}
+
+/**
+ *	OBORO CONTROL PANEL
+ *	NANOSOFT (C)
+ */
+ACMD_FUNC(rtransfer) 
+{
+	READ_TRANSFER();
+	clif_displaymessage(fd,"Transfer recargado @wtransfer <ticket_id> para ver los items");
+	return 0;
+}
+
+/**
+ *	OBORO CONTROL PANEL
+ *	NANOSOFT (C)
+ */
+ACMD_FUNC(wtransfer) {
+	int type, i;
+	char display[100];
+	struct item_data *it;
+	nullpo_retr(-1, sd);
+
+	if ( !message || !*message || sscanf( message,"%d", &type ) < 1 ) 
+	{
+		clif_displaymessage(fd,"@transfer <ticket_id>");
+		return -1;
+	}
+
+	clif_displaymessage(fd," ================================================ ");
+	clif_displaymessage(fd," ");
+
+	for ( i = 0; i < sizeof(struct TRANSFER); i++ ) 
+	{
+		if ( TRANSFER[i].mode == type ) 
+		{
+			it = itemdb_search(TRANSFER[i].item_id);
+			sprintf(display,"[ %s ]: cantidad: %d.", (strlen(it->name) > 0 ? it->name : TRANSFER[i].item_name), TRANSFER[i].quantity);
+			clif_displaymessage(fd,display);
+		}
+	}
+	
+	clif_displaymessage(fd," ");
+	clif_displaymessage(fd," ================================================ ");
+	return 0;
+}
+
+/*==========================================
+* Delete all of your inventory & storage items.
+* rAthena to eAmod oboro svn [isaac]
+*==========================================*/
+ACMD_FUNC(deleteall) 
+{
+
+	int i;
+	nullpo_retr(-1, sd);
+
+	if (sd->state.storage_flag != 1)
+	{
+
+		if( storage_storageopen(sd) == 1 ) 
+		{
+			clif_displaymessage(fd, "You can't open the storage currently.");
+			return -1;
+		}
+	}
+
+	for (i = 0; i < MAX_INVENTORY; i++) 
+	{
+		if (sd->status.inventory[i].amount) 
+		{
+			if(sd->status.inventory[i].equip != 0)
+				pc_unequipitem(sd, i, 3);
+
+			pc_delitem(sd, i, sd->status.inventory[i].amount, 0, 0, LOG_TYPE_OTHER);
+
+		}
+	}
+
+	for (i = 0; i < MAX_STORAGE; i++) 
+	{
+		if(sd->status.storage.items[i].amount)
+			storage_delitem(sd,i,sd->status.storage.items[i].amount);
+	}
+
+	storage_storageclose(sd);
+	return 0;
+
+}
+
+/**
+ *	OBORO CONTROL PANEL
+ *	NANOSOFT (C)
+ */
+ACMD_FUNC(telma)
+{
+	nullpo_retr(-1,sd);
+	if( sd->npc_id || sd->vender_id || sd->buyer_id || sd->state.trading || sd->state.storage_flag )
+		return -1;
+
+	npc_event(sd,"OboroTelma::OnAttach",0);
+	return 0;
+}
+
+/**
+ *	OBORO CONTROL PANEL
+ *	NANOSOFT (C)
+ */
+ACMD_FUNC(showoboroinfo)
+{
+	if (sd->state.oboro_showinfo) {
+		sd->state.oboro_showinfo = 0;
+		clif_displaymessage(fd, "Do Not Show oboro Infos.");
+		return 0;
+	}
+
+	sd->state.oboro_showinfo = 1;
+	clif_displaymessage(fd, "Show oboro Infos.");
+	return 0;
+}
+
+/**
+ *	OBORO CONTROL PANEL
+ *	NANOSOFT (C)
+ */
+ACMD_FUNC(dropat)
+{
+	map_foreachpc(DropAT,sd);
+	return 0;
+}
+
+
+/*==========================================
+* @allchat by [rootKid]
+* Makes all players, except the invoker, send out a desired message
+* eg. @allchat blahblah
+*------------------------------------------*/
+ACMD_FUNC(allchat) 
+{
+	struct map_session_data* iter_sd;
+	struct s_mapiterator* iter;
+	
+	char tempmes[200];
+	iter = mapit_getallusers();
+	nullpo_retr(-1, sd);
+	
+	memset(tempmes, '\0', sizeof(tempmes));
+	memset(atcmd_output, '\0', sizeof(atcmd_output));
+	
+	if (!message || !*message || sscanf(message, "%199[^\n]", tempmes) < 0) {
+		clif_displaymessage(fd, "Please, enter a message (usage: @allchat <message>).");
+		return -1;
+	}
+	
+	for (iter_sd = (TBL_PC*)mapit_first(iter); mapit_exists(iter); iter_sd = (TBL_PC*)mapit_next(iter))
+		if (iter_sd != sd) 
+		{
+			sprintf(atcmd_output, "%s : %s", iter_sd->status.name, tempmes);
+		clif_disp_overhead(&iter_sd->bl, atcmd_output);
+		}
+	mapit_free(iter);
+	return 0;
+}
+
+/**
+ *	OBORO CONTROL PANEL
+ *	NANOSOFT (C)
+ */
+ACMD_FUNC(changebg) 
+{
+	struct npc_data *nd, *nd2;
+	int next = 0;
+	char BG_Var[12];
+
+	next = mapreg_readreg(add_str("$CURRENTPOCBG"));
+	if (next > MAX_BG_ARRAY)
+		next = 1;
+	else
+		next++;
+
+	sprintf(BG_Var,"$NEXTBG_%d", next);
+	if (!mapreg_readreg(add_str(BG_Var)) || mapreg_readreg(add_str(BG_Var)) == 0)
+		next = 1;
+
+	sprintf(BG_Var,"$NEXTBG_%d", next);
+
+	mapreg_setreg(add_str("$CURRENTPOCBG"), next);
+	mapreg_setreg(add_str("$CURRENTBG"), (mapreg_readreg(add_str(BG_Var)) ? mapreg_readreg(add_str(BG_Var)) : 1));
+
+	//delwaitingroom
+	nd = npc_name2id("BGAZUL");
+	nd2 = npc_name2id("BGROJO");
+
+	if(nd != NULL && nd2 != NULL)
+	{
+		chat_deletenpcchat(nd);
+		chat_deletenpcchat(nd2);
+		npc_event_do("BGAZUL::OnUpdateBG");
+		npc_event_do("BGROJO::OnUpdateBG");
+		clif_displaymessage(fd, "Battleground Updated");
+		return 0;
+	}
+	else
+	{
+		clif_displaymessage(fd, "Falló no se encontró NPC");
+		return -1;
+	}
+}
+
+/**
+ *	OBORO CONTROL PANEL
+ *	NANOSOFT (C)
+ */
+ACMD_FUNC(orderbg) 
+{
+	int poc, bgid;
+	char BG_Var[12], output[CHAT_SIZE_MAX];
+	nullpo_retr(-1, sd);
+
+	if (!message || !*message || sscanf(message, "%d %d", &poc, &bgid) < 2) 
+	{
+		clif_displaymessage(fd,"-----------------------------------------------");
+		clif_displaymessage(fd,"1 - Conquest");
+		clif_displaymessage(fd,"2 - Rush");
+		clif_displaymessage(fd,"3 - Flavious TD");
+		clif_displaymessage(fd,"4 - Team vs Team");
+		clif_displaymessage(fd,"5 - Flavius CTF");
+		clif_displaymessage(fd,"-----------------------------------------------");
+		clif_displaymessage(fd, "Usage: @orderbg <position> <bg_id>.");
+		return -1;
+	}
+
+	if ( poc < 1 || poc > MAX_BG_ARRAY )
+	{
+		clif_displaymessage(fd, "Usage: @orderbg <position (1 to 5)> <bg_id>.");
+		return -1;
+	}
+	
+	if ( bgid < 1 || bgid > MAX_BG_ARRAY )
+	{
+		clif_displaymessage(fd, "Usage: @orderbg <position> <bg_id (1 to 5)>.");
+		return -1;
+	}
+
+		sprintf(BG_Var,"$NEXTBG_%d", poc);
+		mapreg_setreg(add_str(BG_Var), bgid);
+		ReOrderBG();
+
+		sprintf(output, "[Battle Ground]: %s asignado a cola", GetBGName(bgid));
+		clif_displaymessage(fd, output);
+		ShowBGArray(sd);
+		return 0;
+}
+
+/**
+ *	OBORO CONTROL PANEL
+ *	NANOSOFT (C)
+ */
+ACMD_FUNC(showbgorder)
+{
+	ShowBGArray(sd);
+	return 0;
+}
+
+/**
+ *	OBORO CONTROL PANEL
+ *	NANOSOFT (C)
+ */
+ACMD_FUNC(changebglimit)
+{
+	int cant;
+	struct npc_data *nd, *nd2;
+
+	if (!message || !*message || sscanf(message, "%d", &cant) < 1)
+	{
+		clif_displaymessage(fd, "@changebglimit <cantidad>");
+		return -1;
+	}
+
+	if (cant < 1)
+	{
+		clif_displaymessage(fd, "0: Can't use it");
+		return -1;
+	}
+
+	mapreg_setreg(add_str("$MINBGLIMIT"), cant);
+
+	//delwaitingroom
+	nd = npc_name2id("BGAZUL");
+	nd2 = npc_name2id("BGROJO");
+
+	if(nd != NULL && nd2 != NULL)
+	{
+		chat_deletenpcchat(nd);
+		chat_deletenpcchat(nd2);
+		npc_event_do("BGAZUL::OnUpdateBG");
+		npc_event_do("BGROJO::OnUpdateBG");
+		clif_displaymessage(fd, "Battleground Updated");
+		return 0;
+	}
+	else
+	{
+		clif_displaymessage(fd, "Falló no se encontró NPC");
+		return -1;
+	}
+
+	return 0;
+}
+
+ACMD_FUNC(peco) 
+{
+	if( &sd->sc && sd->sc.option&(OPTION_WUGRIDER|OPTION_RIDING|OPTION_DRAGON|OPTION_MADOGEAR) )
+		clif_displaymessage(sd->fd, "can't mount with one of these");
+	else
+	{
+		if( &sd->sc && sd->sc.data[SC_ALL_RIDING] )
+			status_change_end(&sd->bl, SC_ALL_RIDING, INVALID_TIMER); //release mount
+		else
+			sc_start(NULL, &sd->bl, SC_ALL_RIDING, 10000, 1, INVALID_TIMER); //mount
+	}
+	return 0;
+}
+
+/**
+ *	OBORO CONTROL PANEL
+ *	NANOSOFT (C)
+ */
+ACMD_FUNC(hold) 
+{
+	char output[CHAT_SIZE_MAX];
+	if ( !sd->state.hold ) 
+		sd->state.hold = 1;
+	else
+		sd->state.hold = 0;
+	strcpy(output ,(sd->state.hold? "Hold activated":"Hold disabled"));
+	clif_displaymessage(fd,output);
+	return 0;
+}
+
+ACMD_FUNC(gepard_block_nick)
+{
+	struct map_session_data* violator_sd;
+	time_t time_server;
+	unsigned int duration;
+	unsigned int violator_account_id = 0;
+	unsigned int violator_unique_id = 0;
+	char reason_str[GEPARD_REASON_LENGTH];
+	char unban_time_str[GEPARD_TIME_STR_LENGTH];
+	char violator_name[NAME_LENGTH];
+	char duration_type, *command_info = "Wrong input (usage: @gepard_block_nick <duration> <duration_type m/h/d> \"<char name>\" <reason>)";
+
+	nullpo_retr(-1, sd);
+
+	memset(atcmd_player_name, '\0', sizeof(atcmd_player_name));
+
+	if (!message || !*message || sscanf(message, "%u %c \"%23[^\"]\" %99[^\n]", &duration, &duration_type, violator_name, reason_str) < 4)
+	{
+		clif_displaymessage(fd, command_info);
+		return -1;
+	}
+
+	time(&time_server);
+
+	switch (duration_type)
+	{
+		case 'm':
+			time_server += (duration * 60);
+		break;
+
+		case 'h':
+			time_server += (duration * 3600);
+		break;
+
+		case 'd':
+			time_server += (duration * 86400);
+		break;
+
+		default:
+			duration = 0;
+		break;
+	}
+
+	if (duration == 0)
+	{
+		clif_displaymessage(fd, command_info);
+		return -1;
+	}
+
+	strftime(unban_time_str, sizeof(unban_time_str), "%Y-%m-%d %H:%M:%S", localtime(&time_server)); 
+
+	sprintf(atcmd_output, "Request: block by name - %s", violator_name);
+	clif_displaymessage(fd, atcmd_output);
+
+	violator_sd = map_nick2sd(violator_name);
+
+	if (violator_sd != NULL)
+	{
+		violator_account_id = violator_sd->status.account_id;
+		violator_unique_id = session[violator_sd->fd]->gepard_info.unique_id;
+	}
+
+	chrif_gepard_req_block(violator_unique_id, violator_name, violator_account_id, sd->status.name, sd->status.account_id, unban_time_str, reason_str);
+
+	return 0;
+}
+
+ACMD_FUNC(gepard_block_account_id)
+{
+	struct map_session_data* violator_sd;
+	time_t time_server;
+	unsigned int duration;
+	unsigned int violator_account_id = 0;
+	unsigned int violator_unique_id = 0;
+	char reason_str[GEPARD_REASON_LENGTH];
+	char unban_time_str[GEPARD_TIME_STR_LENGTH];
+	char duration_type, *command_info = "Wrong input (usage: @gepard_block_account_id <duration> <duration_type m/h/d> <account ID> <reason>)";
+
+	nullpo_retr(-1, sd);
+
+	memset(atcmd_player_name, '\0', sizeof(atcmd_player_name));
+
+	if (!message || !*message || sscanf(message, "%u %c %u %99[^\n]", &duration, &duration_type, &violator_account_id, reason_str) < 4)
+	{
+		clif_displaymessage(fd, command_info);
+		return -1;
+	}
+
+	time(&time_server);
+
+	switch (duration_type)
+	{
+		case 'm':
+			time_server += (duration * 60);
+		break;
+
+		case 'h':
+			time_server += (duration * 3600);
+		break;
+
+		case 'd':
+			time_server += (duration * 86400);
+		break;
+
+		default:
+			duration = 0;
+		break;
+	}
+
+	if (duration == 0)
+	{
+		clif_displaymessage(fd, command_info);
+		return -1;
+	}
+
+	strftime(unban_time_str, sizeof(unban_time_str), "%Y-%m-%d %H:%M:%S", localtime(&time_server)); 
+
+	sprintf(atcmd_output, "Request: block by account ID: %u", violator_account_id);
+	clif_displaymessage(fd, atcmd_output);
+
+	violator_sd = map_id2sd(violator_account_id);
+
+	if (violator_sd != NULL)
+	{
+		violator_account_id = violator_sd->status.account_id;
+		violator_unique_id = session[violator_sd->fd]->gepard_info.unique_id;
+	}
+
+	chrif_gepard_req_block(violator_unique_id, atcmd_player_name, violator_account_id, sd->status.name, sd->status.account_id, unban_time_str, reason_str);
+
+	return 0;
+}
+
+ACMD_FUNC(gepard_block_unique_id)
+{
+	time_t time_server;
+	unsigned int duration;
+	unsigned int violator_unique_id = 0;
+	char reason_str[GEPARD_REASON_LENGTH];
+	char unban_time_str[GEPARD_TIME_STR_LENGTH];
+	char duration_type, *command_info = "Wrong input (usage: @gepard_block_unique_id <duration> <duration_type m/h/d> <unique ID> <reason>)";
+
+	nullpo_retr(-1, sd);
+
+	memset(atcmd_player_name, '\0', sizeof(atcmd_player_name));
+
+	if (!message || !*message || sscanf(message, "%u %c %u %99[^\n]", &duration, &duration_type, &violator_unique_id, reason_str) < 4)
+	{
+		clif_displaymessage(fd, command_info);
+		return -1;
+	}
+
+	time(&time_server);
+
+	switch (duration_type)
+	{
+		case 'm':
+			time_server += (duration * 60);
+		break;
+
+		case 'h':
+			time_server += (duration * 3600);
+		break;
+
+		case 'd':
+			time_server += (duration * 86400);
+		break;
+
+		default:
+			duration = 0;
+		break;
+	}
+
+	if (duration == 0)
+	{
+		clif_displaymessage(fd, command_info);
+		return -1;
+	}
+
+	strftime(unban_time_str, sizeof(unban_time_str), "%Y-%m-%d %H:%M:%S", localtime(&time_server)); 
+
+	sprintf(atcmd_output, "Request: block by unqiue ID: %u", violator_unique_id);
+	clif_displaymessage(fd, atcmd_output);
+
+	chrif_gepard_req_block(violator_unique_id, NULL, 0, sd->status.name, sd->status.account_id, unban_time_str, reason_str);
+
+	return 0;
+}
+
+ACMD_FUNC(gepard_unblock_nick)
+{
+	char violator_name[NAME_LENGTH];
+	char* command_info = "Wrong input (usage: @gepard_unblock_nick <char name>)";
+
+	nullpo_retr(-1, sd);
+
+	if (!message || !*message || sscanf(message, "\"%23[^\"]\"[^\n]", violator_name) < 1)
+	{
+		clif_displaymessage(fd, command_info);
+		return -1;
+	}
+
+	sprintf(atcmd_output, "Request: unblock by name - %s", violator_name);
+
+	clif_displaymessage(fd, atcmd_output);
+
+	chrif_gepard_req_unblock(0, violator_name, 0, sd->status.account_id);
+
+	return 0;
+}
+
+ACMD_FUNC(gepard_unblock_account_id)
+{
+	int violator_aid;
+	char* command_info = "Wrong input (usage: @gepard_unblock_account_id <account ID>)";
+
+	nullpo_retr(-1, sd);
+
+	memset(atcmd_player_name, '\0', sizeof(atcmd_player_name));
+
+	if (!message || !*message || sscanf(message, "%d", &violator_aid) < 1)
+	{
+		clif_displaymessage(fd, command_info);
+		return -1;
+	}
+
+	sprintf(atcmd_output, "Request: unblock by account id - %d", violator_aid);
+
+	clif_displaymessage(fd, atcmd_output);
+
+	chrif_gepard_req_unblock(0, NULL, violator_aid, sd->status.account_id);
+
+	return 0;
+}
+
+ACMD_FUNC(gepard_unblock_unique_id)
+{
+	unsigned int violator_unique_id;
+	char* command_info = "Wrong input (usage: @gepard_unblock_unique_id <unique ID>)";
+
+	nullpo_retr(-1, sd);
+
+	if (!message || !*message || sscanf(message, "%u", &violator_unique_id) < 1)
+	{
+		clif_displaymessage(fd, command_info);
+		return -1;
+	}
+
+	sprintf(atcmd_output, "Request: unblock by unique id - %u", violator_unique_id);
+
+	clif_displaymessage(fd, atcmd_output);
+
+	chrif_gepard_req_unblock(violator_unique_id, NULL, 0, sd->status.account_id);
+
+	return 0;
+}
+
+ACMD_FUNC(set_allowed_gepard_version)
+{
+	FILE* fp;
+	unsigned int gepard_version;
+
+	nullpo_retr(-1, sd);
+
+	gepard_version = strtoul(message, NULL, 10);
+
+	if ((fp = fopen("conf/gepard_version.txt", "w+")) == NULL)
+	{
+		clif_displaymessage(fd, "Can not open conf/gepard_version.txt !");
+		return -1;
+	}
+
+	fprintf (fp, "%u", gepard_version);
+
+	fclose(fp);
+
+	min_allowed_gepard_version = gepard_version;
+
+	sprintf(atcmd_output, "Min allowed Gepard version was set to %u !", min_allowed_gepard_version);
+	clif_displaymessage(fd, atcmd_output);
+
+	return 0;
+}
+
+ACMD_FUNC(get_allowed_gepard_version)
+{
+	sprintf(atcmd_output, "Min allowed version of Gepard Shield is %u", min_allowed_gepard_version);
+	clif_displaymessage(fd, atcmd_output);
+
+	return 0;
+}
+
+ACMD_FUNC(set_allowed_gepard_grf_hash)
+{
+	FILE* fp;
+	unsigned int gepard_grf_hash;
+
+	nullpo_retr(-1, sd);
+
+	gepard_grf_hash = strtoul(message, NULL, 10);
+
+	if ((fp = fopen("conf/gepard_grf_hash.txt", "w+")) == NULL)
+	{
+		clif_displaymessage(fd, "Can not open conf/gepard_grf_hash.txt !");
+		return -1;
+	}
+
+	fprintf (fp, "%u", gepard_grf_hash);
+
+	fclose(fp);
+
+	allowed_gepard_grf_hash = gepard_grf_hash;
+
+	sprintf(atcmd_output, "Allowed Gepard GRF hash was set to %u !", allowed_gepard_grf_hash);
+	clif_displaymessage(fd, atcmd_output);
+
+	return 0;
+}
+
+ACMD_FUNC(get_allowed_gepard_grf_hash)
+{
+	sprintf(atcmd_output, "Allowed Gepard GRF hash is %u", allowed_gepard_grf_hash);
+	clif_displaymessage(fd, atcmd_output);
+
+	return 0;
+}
+
+
 #include "../custom/atcommand.inc"
 
 /**
@@ -11735,6 +12715,45 @@ void atcommand_basecommands(void) {
 	 **/
 	AtCommandInfo atcommand_base[] = {
 #include "../custom/atcommand_def.inc"
+		// [Oboro] -----------------
+		ACMD_DEF(dance),
+		ACMD_DEF(allchat),
+		ACMD_DEF(dropat),
+		ACMD_DEF(telma),
+		ACMD_DEF(deleteall),
+		ACMD_DEF(rtransfer),
+		ACMD_DEF(wtransfer),
+		ACMD_DEF(transfer),
+		ACMD_DEF(house),
+		ACMD_DEF(restock),
+		ACMD_DEF(wrestock),
+		ACMD_DEF(rrestock),
+		ACMD_DEF(securityinfo),
+		ACMD_DEF(bgpoints),
+		ACMD_DEF(partybuff),
+		ACMD_DEF2("spb", partybuff),
+		ACMD_DEF(votepoints),
+		ACMD_DEF(donapoints),
+		ACMD_DEF2("oboro", showoboroinfo),
+		//new bg commands...
+		ACMD_DEF(changebg),
+		ACMD_DEF(orderbg),
+		ACMD_DEF(showbgorder),
+		ACMD_DEF2("showbg",showbgorder),
+		ACMD_DEF(changebglimit),
+		ACMD_DEF(peco),
+		ACMD_DEF(hold),
+		ACMD_DEF(gepard_block_nick),
+		ACMD_DEF(gepard_block_account_id),
+		ACMD_DEF(gepard_block_unique_id),
+		ACMD_DEF(gepard_unblock_nick),
+		ACMD_DEF(gepard_unblock_account_id),
+		ACMD_DEF(gepard_unblock_unique_id),
+		ACMD_DEF(set_allowed_gepard_version),
+		ACMD_DEF(get_allowed_gepard_version),
+		ACMD_DEF(set_allowed_gepard_grf_hash),
+		ACMD_DEF(get_allowed_gepard_grf_hash),
+		// [Oboro] -----------------
 		ACMD_DEF2R("warp", mapmove, ATCMD_NOCONSOLE),
 		ACMD_DEF(where),
 		ACMD_DEF(jumpto),

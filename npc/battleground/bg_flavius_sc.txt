@@ -1,40 +1,8 @@
-// (c) 2008 - 2012 eAmod Project; Andres Garbanzo / Zephyrus
-//
-//  - gaiaro.staff@yahoo.com
-//  - MSN andresjgm.cr@hotmail.com
-//  - Skype: Zephyrus_cr
-//  - Site: http://dev.terra-gaming.com
-//
-// This file is NOT public - you are not allowed to distribute it.
-// Authorized Server List : http://dev.terra-gaming.com/index.php?/topic/72-authorized-eamod-servers/
-// eAmod is a non Free, extended version of eAthena Ragnarok Private Server.
 
 // ==============================================================================
 // BattleGround System - Flavius Stone Control
 // ==============================================================================
 
-// Registration NPC's
-// *********************************************************************
-
-bat_room,141,74,0	script	Registration::SCR_Guillaume	418,{
-	end;
-OnInit:
-	waitingroom "Battle Station 5 Players",6,"Flavius_SC::OnGuillaumeJoin",1;
-	end;
-OnEnterBG:
-	set $@FlaviusSC_id1, waitingroom2bg("bat_b04",390,10,0,"Flavius_SC::OnGuillaumeQuit","Flavius_SC::OnGuillaumeDie");
-	end;
-}
-
-bat_room,141,97,4	script	Registration::SCR_Croix	414,{
-	end;
-OnInit:
-	waitingroom "Battle Station 5 Players",6,"Flavius_SC::OnCroixJoin",1;
-	end;
-OnEnterBG:
-	set $@FlaviusSC_id2, waitingroom2bg("bat_b04",10,290,1,"Flavius_SC::OnCroixQuit","Flavius_SC::OnCroixDie");
-	end;
-}
 
 // Battleground Engine
 // *********************************************************************
@@ -44,7 +12,7 @@ OnEnterBG:
 
 OnGuillaumeQuit:
 OnCroixQuit:
-	setquest 8506; // Deserter
+	callfunc("bgsetwaittime","CTF",180);
 	set @killer_bg_src,0;
 	if( $@FlaviusSC != 0 )
 		donpcevent "Flavius_SC::OnDoBalance";
@@ -81,13 +49,13 @@ OnDoBalance:
 	set .@Croix, bg_get_data($@FlaviusSC_id2, 0);
 
 	if( .@Guillaume < .@Croix )
-		waitingroom2bg_single $@FlaviusSC_id1,"bat_b04",311,224,"SCR_Guillaume";
+		waitingroom2bg_single $@FlaviusSC_id1,"bat_b04",311,224,"BGAZUL";
 	else if( .@Guillaume > .@Croix )
-		waitingroom2bg_single $@FlaviusSC_id2,"bat_b04",87,75,"SCR_Croix";
+		waitingroom2bg_single $@FlaviusSC_id2,"bat_b04",87,75,"BGROJO";
 	else
 	{
-		set .@GuillaumeR, getwaitingroomstate(0,"SCR_Guillaume");
-		set .@CroixR, getwaitingroomstate(0,"SCR_Croix");
+		set .@GuillaumeR, getwaitingroomstate(0,"BGAZUL");
+		set .@CroixR, getwaitingroomstate(0,"BGROJO");
 
 		if( .@GuillaumeR <= .@CroixR )
 			set .@Limit, .@GuillaumeR;
@@ -100,38 +68,38 @@ OnDoBalance:
 
 		for( set .@i, 0; .@i < .@Limit; set .@i, .@i + 1 )
 		{
-			waitingroom2bg_single $@FlaviusSC_id1,"bat_b04",311,224,"SCR_Guillaume";
-			waitingroom2bg_single $@FlaviusSC_id2,"bat_b04",87,75,"SCR_Croix";
+			waitingroom2bg_single $@FlaviusSC_id1,"bat_b04",311,224,"BGAZUL";
+			waitingroom2bg_single $@FlaviusSC_id2,"bat_b04",87,75,"BGROJO";
 		}
 
 		set .@GC, .@Guillaume + .@Limit;
 		set .@CC, .@Croix + .@Limit;
-		mapannounce "bat_room","Battleground -- Flavius SC [80-99] G: " + .@GC + "/35, C: " + .@CC + "/35 (Playing)",1,0x9ACD32;
+		mapannounce "arena_4","Battleground -- Flavius SC [80-99] G: " + .@GC + "/35, C: " + .@CC + "/35 (Playing)",1,0x9ACD32;
 	}
 	end;
 
 OnReadyCheck:
-	if( $@FlaviusSC )
+	if( $@FlaviusSC || $CURRENTBG != 5 )
 		end;
-	set .@Guillaume, getwaitingroomstate(0,"SCR_Guillaume");
-	set .@Croix, getwaitingroomstate(0,"SCR_Croix");
+	set .@Guillaume, getwaitingroomstate(0,"BGAZUL");
+	set .@Croix, getwaitingroomstate(0,"BGROJO");
 	
-	if( .@Guillaume < 5 || .@Croix < 5 )
+	if( .@Guillaume < ($MINBGLIMIT - 1) || .@Croix < ($MINBGLIMIT - 1) )
 	{
 		if( .@Guillaume > 3 && .@Croix > 3 && !agitcheck() && $@FlaviusSC_Flood < gettimetick(2) )
 		{
-			announce "Battleground -- Flavius SC [80-99] G: " + .@Guillaume + "/5, C: " + .@Croix + "/5",0,0x9ACD32;
+			announce "Battleground -- Flavius SC [80-99] G: " + .@Guillaume + "/"+($MINBGLIMIT - 1)+", C: " + .@Croix + "/"+($MINBGLIMIT - 1),0,0xA0522D;
 			set $@FlaviusSC_Flood, gettimetick(2) + 15;
 		}
 		else
-			mapannounce "bat_room","Battleground -- Flavius SC [80-99] G: " + .@Guillaume + "/5, C: " + .@Croix + "/5",1,0x9ACD32;
+			mapannounce "arena_4","Battleground -- Flavius SC [80-99] G: " + .@Guillaume + "/"+($MINBGLIMIT - 1)+", C: " + .@Croix + "/"+($MINBGLIMIT - 1),1,0xA0522D;
 		end;
 	}
 
 	set $@FlaviusSC, 1;
 	initnpctimer;
-	donpcevent "SCR_Croix::OnEnterBG";
-	donpcevent "SCR_Guillaume::OnEnterBG";
+	donpcevent "BGROJO::OnEnterBG";
+	donpcevent "BGAZUL::OnEnterBG";
 	set .Guillaume_Score, 0;
 	set .Croix_Score, 0;
 	setarray .Stone[1],0,0,0,0,0,0;
@@ -182,27 +150,37 @@ OnTimer840000:
 
 OnTimer900000:
 OnMatchEnd:
-	set $@FlaviusSC, 2;
-	// Rewards =====================================
+	set $@FlaviusSC, 2; //bg_status
+	
+	//[Oboro] Rotacion de BG
+	ChangeBG();
+	
+	// =======================================================
+	// Team Rewards
+	// =======================================================
+
 	if( .Guillaume_Score > .Croix_Score )
-	{ // Guillaume Won
-		bg_reward $@FlaviusSC_id1,7829,30,0,8507,"BG_SC",1,5,0;
-		bg_reward $@FlaviusSC_id2,7829,15,0,8507,"BG_SC",1,5,2;
+	{
+		// Ganó Guillaume
+		bg_item($@FlaviusSC_id1, 1);
+		bg_item($@FlaviusSC_id2, 0);
 		mapannounce "bat_b04","The Guillaume army has won the Battle of Flavius SC!",1,0x0000FF;
 	}
-	else if( .Guillaume_Score < .Croix_Score )
-	{ // Croix Won
-		bg_reward $@FlaviusSC_id1,7829,15,0,8507,"BG_SC",1,5,2;
-		bg_reward $@FlaviusSC_id2,7829,30,0,8507,"BG_SC",1,5,0;
+	else if( .Croix_Score > .Guillaume_Score )
+	{
+		// Ganó Croix
+		bg_item($@FlaviusSC_id1, 0);
+		bg_item($@FlaviusSC_id2, 1);
 		mapannounce "bat_b04","The Croix army has won the Battle of Flavius SC!",1,0xFF0000;
 	}
 	else
 	{
-		bg_reward $@FlaviusSC_id1,7829,15,0,8507,"BG_SC",1,5,1;
-		bg_reward $@FlaviusSC_id2,7829,15,0,8507,"BG_SC",1,5,1;
+		// Empate, perdida ambos por default
+		bg_item($@FlaviusSC_id1, 0);
+		bg_item($@FlaviusSC_id2, 0);
 		mapannounce "bat_b04","The battle is over. This is a Tie...!",1,0x9ACD32;
 	}
-	// =============================================
+	
 	stopnpctimer;
 	donpcevent "#guisc_respawn::OnBGStop";
 	donpcevent "#crosc_respawn::OnBGStop";
@@ -212,11 +190,9 @@ OnMatchEnd:
 		stopnpctimer "csp" + .@i;
 		stopnpctimer "gsp" + .@i;
 	}
+	mapannounce "bat_b02","Battle of Flavius CTF will start in 0 seconds!",1,0xA0522D;
 	sleep 2000;
-	bg_warp $@FlaviusSC_id1,"bat_b04",390,10;
-	bg_warp $@FlaviusSC_id2,"bat_b04",10,290;
-	sleep 3000;
-	mapannounce "bat_b04","Battle of Flavius SC will start in 15 seconds!",1,0x9ACD32;
+	mapwarp "bat_b02","arena_4",148,99;
 	initnpctimer;
 	end;
 
@@ -238,7 +214,7 @@ OnReset:
 	set $@FlaviusSC_id1, 0;
 	set $@FlaviusSC_id2, 0;
 	sleep 1000;
-	mapwarp "bat_b04","bat_room",155,150;
+	mapwarp "bat_b04","arena_4",155,150;
 	sleep 1000;
 	maprespawnguildid "bat_b04",0,3; // Just in case someone else
 	bg_updatescore "bat_b04",0,0;
@@ -1088,44 +1064,30 @@ OnBGStop:
 // *********************************************************************
 
 bat_b04,390,13,5	script	Therapist in battle#sc1	95,{
-	switch( $@FlaviusSC )
-	{
-	case 2:
-		bg_leave;
-		warp "bat_room",155,150;
-		break;
-	case 1:
-		mes "[Therapist in battle]";
-		mes "Just close your eyes, and take a deep breathe.";
-		mes "You can be free from pain.";
-		specialeffect2 312;
-		percentheal 100,100;
-		repairall;
-		close2;
-		openstorage;
-		break;
-	}
+	percentheal 100,100;
+	sc_start 32,  250000, 10;  // Increase Agi
+	sc_start 30,  250000, 10;  // Blessing
+	repairall;
+	end;
+OnTouch:
+	percentheal 100,100;
+	sc_start 32,  250000, 10;  // Increase Agi
+	sc_start 30,  250000, 10;  // Blessing
+	repairall;
 	end;
 }
 
 bat_b04,10,293,5	script	Therapist in battle#sc2	95,{
-	switch( $@FlaviusSC )
-	{
-	case 2:
-		bg_leave;
-		warp "bat_room",155,150;
-		break;
-	case 1:
-		mes "[Therapist in battle]";
-		mes "Just close your eyes, and take a deep breathe.";
-		mes "You can be free from pain.";
-		specialeffect2 312;
-		percentheal 100,100;
-		repairall;
-		close2;
-		openstorage;
-		break;
-	}
+	percentheal 100,100;
+	sc_start 32,  250000, 10;  // Increase Agi
+	sc_start 30,  250000, 10;  // Blessing
+	repairall;
+	end;
+OnTouch:
+	percentheal 100,100;
+	sc_start 32,  250000, 10;  // Increase Agi
+	sc_start 30,  250000, 10;  // Blessing
+	repairall;
 	end;
 }
 

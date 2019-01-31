@@ -275,6 +275,8 @@ enum npc_subtype {
 	NPCTYPE_POINTSHOP, /// Pointshop
 	NPCTYPE_TOMB, /// Monster tomb
 	NPCTYPE_MARKETSHOP, /// Marketshop
+	NPCTYPE_COSTUMESHOP, // [Oboro] Costume Shop
+
 };
 
 enum e_race {
@@ -718,6 +720,8 @@ struct map_data {
 		unsigned nomineeffect : 1; //allow /mineeffect
 		unsigned nolockon : 1;
 		unsigned notomb : 1;
+		unsigned nodiscount : 1; // [Oboro]
+		unsigned guild_min : 1; // [Oboro]
 #ifdef ADJUST_SKILL_DAMAGE
 		unsigned skill_damage : 1;
 #endif

@@ -259,7 +259,7 @@
 // USA 4th Anniversary Event Items
 5305,475,100	// Pirate Dagger
 5373,73,100	// Dark Randgris Helm
-7773,499,100	// Wat Badge
+//7773,499,100	// Wat Badge
 7875,467,100	// Pirate Treasure
 
 // Moscovia Quest Items -----
@@ -430,8 +430,8 @@
 2539,467,100	// Commander's Manteau
 2540,467,100	// Sheriff's Manteau
 2733,467,100	// Sheriff Badge
-7828,467,100	// Bravery Badge
-7829,467,100	// Valor Badge
+//7828,467,100	// Bravery Badge
+//7829,467,100	// Valor Badge
 13036,467,100	// Brave Assassin's Damascus
 13037,467,100	// Valorous Assassin's Damascus
 13108,467,100	// Soldier Revolver
@@ -1510,9 +1510,9 @@
 5395,73,100	// Striped Hat
 5403,73,100	// Fish In Mouth
 5428,475,100	// RWC Anniversary Bread Envelope
-5451,475,100	// RWC 2008 Dragon Helm Gold
-5452,475,100	// RWC 2008 Dragon Helm Silver
-5453,475,100	// RWC 2008 Dragon Helm Copper
+//5451,475,100	// RWC 2008 Dragon Helm Gold
+//5452,475,100	// RWC 2008 Dragon Helm Silver
+//5453,475,100	// RWC 2008 Dragon Helm Copper
 5457,73,100	// Moon Rabbit Hat
 5476,73,100	// Grand Peco Hairband
 5479,65,100	// Shaman's Hair Decoration

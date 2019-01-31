@@ -1,0 +1,84 @@
+
+prontera,155,171,5	script	Marvin	757,{
+function CardValue;
+
+if( #daily_cedi_limit == .today_date ){
+	mes "Usted ya alcanza el intercambio diario de puntos de hoy. Cual es "+.max_daily_exchange+" points.";
+}else{
+	if( .today_date > #daily_cedi_limit && #daily_cedi_limit > .year )
+		#daily_cedi_limit = 0;
+		
+	.@card_point = getd( ".point_"+.target_card );
+	if( !.@card_point ) .@card_point = 1;
+	mes "Actualmente necesito "+getitemname( .target_card )+" para terminar mi coleccion de Cards";
+	mes "Cada "+getitemname( .target_card )+" vale "+.@card_point+" points.";
+	.@countitem = countitem( .target_card );
+	if( .@countitem ){
+		next;
+		if( select( "Intercambiar "+getitemname( .target_card )+" a points.","Cancel" ) == 1 ){
+			mes "Tienes "+.@countitem+" x "+getitemname( .target_card );
+			mes .@card_point+" points cada.";
+			mes "Cuantas card quieres cambiar por points ?";
+			mes "Hoy intercambiado "+#daily_cedi_limit+" points.";
+			.@maximum = ( ( .max_daily_exchange - #daily_cedi_limit ) / .@card_point );
+			input .@amount,0,.@maximum;
+			if( .@amount ){
+				next;
+				mes "Intercambiar "+.@amount+" x "+getitemname( .target_card )+" por "+( .@amount * .@card_point )+" points.";
+				if( select( "Confirmar","Cancelar" ) == 1 ){
+					delitem .target_card,.@amount;
+					#daily_cedi_limit += ( .@amount * .@card_point );
+					#cedi_point += ( .@amount * .@card_point );
+					mes "Ganado "+( .@amount * .@card_point )+" points.";
+					if( #daily_cedi_limit >= .max_daily_exchange )
+						#daily_cedi_limit = .today_date;
+				}
+			}
+		}
+	}
+}
+close;
+
+OnWhisperGlobal:
+if( .target_card ){
+	.@card_point = getd( ".point_"+.target_card );
+	if( !.@card_point ) .@card_point = 1;
+	dispbottom "[ "+strnpcinfo(1)+" ]: actualmente necesito "+getitemname( .target_card )+". A cambio ofrezco "+.@card_point+" points para cada card.";
+}
+end;
+
+
+OnInit:
+// daily point exchange limit
+.max_daily_exchange = 2000;
+
+.year = ( gettime(7) * 1000 );
+
+// CardValue( <point>,<card1>,...,<card127> );
+// ( if didnt add = 1 point each card )
+// 		card that worth 20 points. ( max 127 card )
+CardValue( 20,4140,4409,4244,4253,4401,4402,4400 );
+// 		card that worth 500 points. ( max 127 card )
+CardValue( 500,4236,4147,4145,4320 );
+
+OnClock0000:
+.today_date = atoi( gettimestr( "%Y%m%d",21 ) );
+OnMinute00:
+if( gettime(3) % 2 == 0 && .target_card ) end;
+do{
+	.target_card = rand( 4001,4555 );
+}while( getiteminfo( .target_card,2 ) != IT_CARD );
+end;
+
+function	CardValue	{
+	.@point = getarg(0);
+	.@card_count = getargcount() - 1;
+	.@i = 1;
+	while( .@i <= .@card_count ){
+		setd( ".point_"+getarg(.@i) ),.@point;
+		.@i++;
+	}
+	// debugmes "Added "+.@card_count+" Card that worth "+.@point+" Points.";
+	return;
+}
+}

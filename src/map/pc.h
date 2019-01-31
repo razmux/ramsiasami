@@ -265,6 +265,12 @@ struct map_session_data {
 		unsigned int evade_antiwpefilter : 1; // Required sometimes to show the user previous to use the skill
 		unsigned int bg_afk : 1; // Moved here to reduce searchs
 		unsigned int bg_listen : 1;
+		unsigned int spb : 1; // @spb / @partybuff [Oboro]
+		unsigned int restock : 1; // [Oboro]
+		unsigned int afk : 1; // [Oboro]
+		unsigned int oboro_showinfo : 1; // [Oboro]
+		unsigned int hold : 1; // [Oboro]
+
 	} state;
 	struct {
 		unsigned char no_weapon_damage, no_magic_damage, no_misc_damage;
@@ -1080,6 +1086,9 @@ uint64 pc_generate_unique_id(struct map_session_data *sd);
 
 //Bound items
 int pc_bound_chk(TBL_PC *sd,enum bound_type type,int *idxlist);
+
+int pc_getitem_map(struct map_session_data *sd,struct item it,int amt,int count,e_log_pick_type log_type); // [Xantara]
+
 
 // Special Shop System
 int pc_paycash( struct map_session_data *sd, int price, int points, e_log_pick_type type );

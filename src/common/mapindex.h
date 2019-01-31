@@ -36,7 +36,7 @@
 #ifdef RENEWAL
 	#define MAP_NOVICE "iz_int"
 #else
-	#define MAP_NOVICE "new_1-1"
+	#define MAP_NOVICE "novice"
 #endif
 #define MAP_MOSCOVIA "moscovia"
 #define MAP_MIDCAMP "mid_camp"
@@ -50,6 +50,11 @@
 #define MAP_MALAYA "malaya"
 #define MAP_ECLAGE "eclage"
 #define MAP_ECLAGE_IN "ecl_in01"
+
+#define MAP_MERCADOCASH "itemmall"
+#define MAP_MERCADOZENY "Mercado"
+#define MAP_MERCADONPC "ayothaya"
+#define MAP_ZONAJUEGOS "quiz_00"
 
 const char* mapindex_getmapname(const char* string, char* output);
 const char* mapindex_getmapname_ext(const char* string, char* output);

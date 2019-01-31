@@ -48,6 +48,7 @@
 #include "region.h"
 #include "storage.h"
 #include "mapreg.h"
+#include "oboro.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -1337,24 +1338,26 @@ void pc_setequipindex(struct map_session_data *sd)
 	pc_calcweapontype(sd);
 }
 
-//static int pc_isAllowedCardOn(struct map_session_data *sd,int s,int eqindex,int flag)
-//{
-//	int i;
-//	struct item *item = &sd->status.inventory[eqindex];
-//	struct item_data *data;
-//
-//	//Crafted/made/hatched items.
-//	if (itemdb_isspecial(item->card[0]))
-//		return 1;
-//
-//	/* scan for enchant armor gems */
-//	if( item->card[MAX_SLOTS - 1] && s < MAX_SLOTS - 1 )
-//		s = MAX_SLOTS - 1;
-//
-//	ARR_FIND( 0, s, i, item->card[i] && (data = itemdb_exists(item->card[i])) != NULL && data->flag.no_equip&flag );
-//	return( i < s ) ? 0 : 1;
-//}
+/*static int pc_isAllowedCardOn(struct map_session_data *sd,int s,int eqindex,int flag)
+{
+	int i;
+	struct item *item = &sd->status.inventory[eqindex];
+	struct item_data *data;
 
+	//Crafted/made/hatched items.
+	if (itemdb_isspecial(item->card[0]))
+		return 1;
+
+	// scan for enchant armor gems
+	if( item->card[MAX_SLOTS - 1] && s < MAX_SLOTS - 1 )
+		s = MAX_SLOTS - 1;
+
+	ARR_FIND( 0, s, i, item->card[i] && (data = itemdb_exists(item->card[i])) != NULL && data->flag.no_equip&flag );
+	return( i < s ) ? 0 : 1;
+}
+*/
+/*
+//[Oboro] Parece no ser utilizado, descomentar si necesario
 static int pc_isAllowedCardOn_Ancient(struct map_session_data *sd,int s,int eqindex)
 {
 	int i;
@@ -1365,13 +1368,14 @@ static int pc_isAllowedCardOn_Ancient(struct map_session_data *sd,int s,int eqin
 	if (itemdb_isspecial(item->card[0]))
 		return 1;
 
-	/* scan for enchant armor gems */
+	// scan for enchant armor gems 
 	if( item->card[MAX_SLOTS - 1] && s < MAX_SLOTS - 1 )
 		s = MAX_SLOTS - 1;
 	
 	ARR_FIND( 0, s, i, item->card[i] && (data = itemdb_exists(item->card[i])) != NULL && !data->ancient );
 	return( i < s ) ? 0 : 1;
 }
+*/
 
 
 /**
@@ -1612,6 +1616,21 @@ uint8 pc_isequip(struct map_session_data *sd,int n)
 					case W_2HSTAFF: //All level 4 - 2H Staves
 						return ITEM_EQUIP_ACK_OK;
 				}
+		}
+	}
+
+	//	[Oboro] ISAAC NO PERMITE GLORIOUS BOW +10 EN MF GVG
+	if ( map[sd->bl.m].flag.gvg_castle || map[sd->bl.m].flag.gvg || map[sd->bl.m].flag.woe_set ) 
+	{
+		switch(sd->status.inventory[n].nameid)
+		{
+			case 1743: // G.Bow
+			case 1281: // G. Katar
+			case 1282: // G. Katar 2
+			case 1546: // Morning Star
+				if ( sd->status.inventory[n].refine > 10 )
+					return 0;
+			break;
 		}
 	}
 
@@ -4866,11 +4885,12 @@ int pc_insert_card(struct map_session_data* sd, int idx_card, int idx_equip)
 
 /*==========================================
  * Update buying value by skills
+ * [Oboro] No Discount Mapflag
  *------------------------------------------*/
 int pc_modifybuyvalue(struct map_session_data *sd,int orig_value)
 {
 	int skill,val = orig_value,rate1 = 0,rate2 = 0;
-	if( !battle_config.super_woe_enable )
+	if( !battle_config.super_woe_enable || !map[sd->bl.m].flag.nodiscount )
 	{ // Discount not usable on Super WoE / GvG Events
 		if( (skill = pc_checkskill(sd,MC_DISCOUNT)) > 0 )	// merchant discount
 			rate1 = 5 + skill * 2 - ((skill==10)? 1:0);
@@ -5333,6 +5353,10 @@ char pc_delitem(struct map_session_data *sd,int n,int amount,int type, short rea
 
 	if(n < 0 || sd->status.inventory[n].nameid==0 || amount <= 0 || sd->status.inventory[n].amount<amount || sd->inventory_data[n] == NULL)
 		return 1;
+
+	// - [Oboro] RESTOCKSTART
+	if ( log_type != LOG_TYPE_STORAGE )
+		INIT_EVENT_RESTOCK(sd,sd->status.inventory[n].nameid);
 
 	log_pick_pc(sd, log_type, -amount, &sd->status.inventory[n]);
 
@@ -5807,6 +5831,8 @@ int pc_useitem(struct map_session_data *sd,int n)
 	return 1;
 }
 
+
+
 /**
  * Add item on cart for given index.
  * @param sd
@@ -6137,6 +6163,31 @@ int pc_steal_coin(struct map_session_data *sd,struct block_list *target)
 	return 0;
 }
 
+/*------------------------------------------
+ * pc_getitem_map [Xantara]
+ *------------------------------------------*/
+int pc_getitem_map(struct map_session_data *sd,struct item it,int amt,int count,e_log_pick_type log_type)
+{
+	int i, flag;
+
+	nullpo_ret(sd);
+
+	for ( i = 0; i < amt; i += count )
+	{
+		if ( !pet_create_egg(sd,it.nameid) )
+		{ // if not pet egg
+			if ((flag = pc_additem(sd,&it,count,log_type)))
+			{
+				clif_additem(sd, 0, 0, flag);
+				if(pc_candrop(sd,&it))
+					map_addflooritem(&it,count,sd->bl.m,sd->bl.x,sd->bl.y,0,0,0,0,0,0);
+			}
+		}
+	}
+	return 1;
+}
+
+
 /*==========================================
  * Set's a player position.
  * @param sd
@@ -6155,7 +6206,8 @@ enum e_setpos pc_setpos(struct map_session_data* sd, unsigned short mapindex, in
 	struct party_data *p;
 	struct guild_castle *gc;
 	int16 m;
-	int i, c;
+	int i, c, house_number;
+	char concatHouse[40], output[CHAT_SIZE_MAX];
 
 	nullpo_retr(SETPOS_OK,sd);
 
@@ -6173,6 +6225,34 @@ enum e_setpos pc_setpos(struct map_session_data* sd, unsigned short mapindex, in
 	}
 
 	m = map_mapindex2mapid(mapindex);
+
+	if( map[m].flag.guild_min && pc_get_group_level(sd) < 60 )
+	{ // - [Oboro] Guild Min Limit
+		if ( !sd->status.guild_id || (sd->status.guild_id && (g = guild_search(sd->status.guild_id)) == NULL) )
+		{
+			mapindex = sd->status.save_point.map;
+			x = sd->status.save_point.x;
+			y = sd->status.save_point.y;
+			m = map_mapindex2mapid(mapindex);
+			clif_displaymessage(sd->fd, "[Guild Limit]: No puedes entrar sin guild al castillo");
+		}
+		else if (sd->bl.m != m && sd->status.guild_id && (g = guild_search(sd->status.guild_id)) != NULL )
+		{
+			for( i = c = 0; i < g->max_member; i++ )
+			if( g->member[i].sd )
+				c++;
+			
+			if ( c < battle_config.min_guild && agit_flag != 0 )
+			{
+				sprintf(output,"[Guild Limit]: Tu Guild debe tener al menos %d miembros para entrar a WOE", battle_config.min_guild);
+				clif_displaymessage(sd->fd,output);
+				mapindex = sd->status.save_point.map;
+				x = sd->status.save_point.x;
+				y = sd->status.save_point.y;
+				m = map_mapindex2mapid(mapindex);
+			}
+		}
+	}
 
 	if( (map[m].flag.blocked && !pc_has_permission(sd,PC_PERM_WARP_ANYWHERE)) || (map[m].flag.ancient && (sd->md || !pc_class2ancientwoe(sd->status.class_) || pc_checkskill(sd, ALL_INCCARRY))) )
 	{
@@ -6202,6 +6282,23 @@ enum e_setpos pc_setpos(struct map_session_data* sd, unsigned short mapindex, in
 			m = map_mapindex2mapid(mapindex);
 		}
 	}
+
+	// - [Oboro] House System
+	else if (strncmp(map[m].name, "gr_", 3) == 0 && pc_get_group_level(sd) < 60 ) 
+	{
+		sscanf(map[m].name, "%*[^_]_%d", &house_number);
+		sprintf(concatHouse,"$GROOM%d",house_number);
+		if ( !sd->status.guild_id || sd->status.guild_id != mapreg_readreg(add_str(concatHouse))) 
+		{
+			clif_displaymessage(sd->fd, "[House System]: You are not allowed to enter the house.");
+			pc_setsavepoint(sd, mapindex_name2id(MAP_PRONTERA), 155, 187);
+			mapindex = sd->status.save_point.map;
+			x = sd->status.save_point.x;
+			y = sd->status.save_point.y;
+			m = map_mapindex2mapid(mapindex);
+		}
+	}
+
 	else if( map[m].party_max && sd->bl.m != m && sd->status.party_id && (p = party_search(sd->status.party_id)) != NULL )
 	{ // Party Limit
 		for( i = c = 0; i < MAX_PARTY && c < map[m].party_max; i++ )
@@ -9178,6 +9275,22 @@ int pc_dead(struct map_session_data *sd,struct block_list *src,uint16 skill_id)
 		pc_calc_ranking(sd, ssd, skill_id); // Ranking System
 		pc_setparam(ssd, SP_KILLEDRID, sd->bl.id);
 		npc_script_event(ssd, NPCE_KILLPC);
+
+		// - [Oboro]
+		// nuevo sistema de PVP para Ranking Oboro
+		if (sd && ssd && map[sd->bl.m].flag.pvp)
+		{
+			if ( sd->status.account_id != ssd->status.account_id )
+			{
+				if ( sd->status.base_level == 99 )
+				{
+					// SQL Ranking
+					sd->status.oboropvp.dead++;
+					ssd->status.oboropvp.kill++;
+				}
+			}
+		}
+
 
 		if( ssd->status.guild_id && guild_wardamage(sd) )
 			flag = 2;

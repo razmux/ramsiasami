@@ -1,41 +1,3 @@
-// (c) 2008 - 2012 eAmod Project; Andres Garbanzo / Zephyrus
-//
-//  - gaiaro.staff@yahoo.com
-//  - MSN andresjgm.cr@hotmail.com
-//  - Skype: Zephyrus_cr
-//  - Site: http://dev.terra-gaming.com
-//
-// This file is NOT public - you are not allowed to distribute it.
-// Authorized Server List : http://dev.terra-gaming.com/index.php?/topic/72-authorized-eamod-servers/
-// eAmod is a non Free, extended version of eAthena Ragnarok Private Server.
-
-// ==============================================================================
-// BattleGround System - Conquest 1
-// ==============================================================================
-
-// Registration NPC's
-// *********************************************************************
-
-bat_room,169,74,0	script	Registration::ConR_Guillaume	418,{
-	end;
-OnInit:
-	waitingroom "Battle Station 20 Players",21,"Conquest::OnGuillaumeJoin",1;
-	end;
-OnEnterBG:
-	set $@Conquest_id1, waitingroom2bg(getvariableofnpc(.Castle$,"Conquest"),getvariableofnpc(.GX,"Conquest"),getvariableofnpc(.GY,"Conquest"),0,"Conquest::OnGuillaumeQuit","");
-	end;
-}
-
-bat_room,169,97,4	script	Registration::ConR_Croix	414,{
-	end;
-OnInit:
-	waitingroom "Battle Station 20 Players",21,"Conquest::OnCroixJoin",1;
-	end;
-OnEnterBG:
-	set $@Conquest_id2, waitingroom2bg(getvariableofnpc(.Castle$,"Conquest"),getvariableofnpc(.CX,"Conquest"),getvariableofnpc(.CY,"Conquest"),1,"Conquest::OnCroixQuit","");
-	end;
-}
-
 // Battleground Engine
 // *********************************************************************
 
@@ -43,7 +5,7 @@ OnEnterBG:
 	end;
 
 OnSetRotation:
-	if( set(.Index,.Index + 1) > 5 ) set .Index, 0;
+	if( set(.Index,.Index + 1) > 6 ) set .Index, 0;
 
 	switch( .Index )
 	{
@@ -53,11 +15,12 @@ OnSetRotation:
 	case 3: set .Castle$,"arug_cas06"; set .GX, 30; set .GY,381; set .CX,126; set .CY,357; set .DX, 67; set .DY,193; set .AX,275; set .AY, 93; break;
 	case 4: set .Castle$,"arug_cas07"; set .GX,298; set .GY,339; set .CX,298; set .CY,308; set .DX, 43; set .DY,256; set .AX,139; set .AY, 31; break;
 	case 5: set .Castle$,"arug_cas08"; set .GX,313; set .GY,154; set .CX,330; set .CY,154; set .DX,121; set .DY,318; set .AX,141; set .AY, 45; break;
+	// ORLOX CASTLE BG BY ISAAC
+	case 6: set .Castle$,"mocg_cas02"; set .GX,317; set .GY,120; set .CX,314; set .CY,136; set .DX,141; set .DY,312; set .AX,142; set .AY, 46; break;
 	}
 	end;
 
 OnInit:
-	// Cementery Walls
 	setwall "schg_cas06",291,376,8,0,0,"conquest_wall_a";
 	setwall "schg_cas06",268,376,8,0,0,"conquest_wall_b";
 	setwall "schg_cas07",93,301,21,0,0,"conquest_wall_c";
@@ -72,6 +35,10 @@ OnInit:
 	setwall "arug_cas07",300,312,4,6,0,"conquest_wall_j2";
 	setwall "arug_cas08",317,150,8,0,0,"conquest_wall_k";
 	setwall "arug_cas08",326,150,8,0,0,"conquest_wall_l";
+	// ORLOX CASTLE BG BY ISAAC
+	setwall "mocg_cas02",318,117,23,0,0,"conquest_wall_m0";//norte
+	setwall "mocg_cas02",317,133,6,2,0,"conquest_wall_m1";//oeste
+	setwall "mocg_cas02",317,124,6,2,0,"conquest_wall_m2";//oeste
 
 	set .Index,0;
 	donpcevent "Conquest::OnSetRotation";
@@ -79,7 +46,7 @@ OnInit:
 
 OnGuillaumeQuit:
 OnCroixQuit:
-	setquest 8506; // Deserter
+	callfunc("bgsetwaittime","Conquest",180);
 	if( $@Conquest != 0 )
 		donpcevent "Conquest::OnDoBalance";
 	end;
@@ -100,57 +67,57 @@ OnDoBalance:
 	set .@Croix, bg_get_data($@Conquest_id2, 0);
 
 	if( .@Guillaume < .@Croix )
-		waitingroom2bg_single $@Conquest_id1,.Castle$,.GX,.GY,"ConR_Guillaume";
+		waitingroom2bg_single $@Conquest_id1,.Castle$,.GX,.GY,"BGAZUL";
 	else if( .@Guillaume > .@Croix )
-		waitingroom2bg_single $@Conquest_id2,.Castle$,.CX,.CY,"ConR_Croix";
+		waitingroom2bg_single $@Conquest_id2,.Castle$,.CX,.CY,"BGROJO";
 	else
 	{
-		set .@GuillaumeR, getwaitingroomstate(0,"ConR_Guillaume");
-		set .@CroixR, getwaitingroomstate(0,"ConR_Croix");
+		set .@GuillaumeR, getwaitingroomstate(0,"BGAZUL");
+		set .@CroixR, getwaitingroomstate(0,"BGROJO");
 
 		if( .@GuillaumeR <= .@CroixR )
 			set .@Limit, .@GuillaumeR;
 		else
 			set .@Limit, .@CroixR;
 
-		if( .@Limit + .@Guillaume > 50 )
-			set .@Limit, 50 - .@Guillaume;
+		if( .@Limit + .@Guillaume > 100 )
+			set .@Limit, 100 - .@Guillaume;
 		if( .@Limit <= 0 ) end;
 
 		for( set .@i, 0; .@i < .@Limit; set .@i, .@i + 1 )
 		{
-			waitingroom2bg_single $@Conquest_id1,.Castle$,.GX,.GY,"ConR_Guillaume";
-			waitingroom2bg_single $@Conquest_id2,.Castle$,.CX,.CY,"ConR_Croix";
+			waitingroom2bg_single $@Conquest_id1,.Castle$,.GX,.GY,"BGAZUL";
+			waitingroom2bg_single $@Conquest_id2,.Castle$,.CX,.CY,"BGROJO";
 		}
 
 		set .@Guillaume, .@Guillaume + .@Limit;
 		set .@Croix, .@Croix + .@Limit;
-		mapannounce "bat_room","Battleground -- Conquest [80-99] G: " + .@Guillaume + "/50, C: " + .@Croix + "/50 (Playing)",1,0xFFA500;
+		mapannounce "arena_4","Battleground -- Conquest [80-99] G: " + .@Guillaume + "/100, C: " + .@Croix + "/100 (Playing)",1,0xFFA500;
 	}
 	end;
 
 OnReadyCheck:
-	if( $@Conquest )
+	if( $@Conquest || $CURRENTBG != 1 )
 		end;
-	set .@Guillaume, getwaitingroomstate(0,"ConR_Guillaume");
-	set .@Croix, getwaitingroomstate(0,"ConR_Croix");
+	set .@Guillaume, getwaitingroomstate(0,"BGAZUL");
+	set .@Croix, getwaitingroomstate(0,"BGROJO");
 	
-	if( .@Guillaume < 20 || .@Croix < 20 )
+	if( .@Guillaume < ($MINBGLIMIT - 1) || .@Croix < ($MINBGLIMIT - 1) )
 	{
-		if( .@Guillaume > 15 && .@Croix > 15 && !agitcheck() && $@Conquest_Flood < gettimetick(2) )
+		if( .@Guillaume > ($MINBGLIMIT - 1) && .@Croix > ($MINBGLIMIT - 1) && !agitcheck() && $@Conquest_Flood < gettimetick(2) )
 		{
-			announce "Battleground -- Conquest [80-99] G: " + .@Guillaume + "/20, C: " + .@Croix + "/20",0,0xFFA500;
+			announce "Battleground -- Conquest [80-99] G: " + .@Guillaume + "/"+($MINBGLIMIT - 1)+", C: " + .@Croix + "/"+($MINBGLIMIT - 1),0,0xFFA500;
 			set $@Conquest_Flood, gettimetick(2) + 15;
 		}
 		else
-			mapannounce "bat_room","Battleground -- Conquest [80-99] G: " + .@Guillaume + "/20, C: " + .@Croix + "/20",1,0xFFA500;
+			mapannounce "arena_4","Battleground -- Conquest [80-99] G: " + .@Guillaume + "/"+($MINBGLIMIT - 1)+", C: " + .@Croix + "/"+($MINBGLIMIT - 1),1,0xFFA500;
 		end;
 	}
 
 	set $@Conquest, 1;
 	set .Score, 0;
-	donpcevent "ConR_Guillaume::OnEnterBG";
-	donpcevent "ConR_Croix::OnEnterBG";
+	donpcevent "BGAZUL::OnEnterBG";
+	donpcevent "BGROJO::OnEnterBG";
 	announce "Battleground -- Conquest [80-99] has started!",0,0xFFA500;
 	switch( rand(2) )
 	{
@@ -199,13 +166,15 @@ OnReadyCheck:
 		bg_monster .Defender,.Castle$,120,240," ",1906,"Conquest::OnBarricade3";
 		bg_monster .Defender,.Castle$,122,240," ",1906,"Conquest::OnBarricade3";
 
-		bg_monster .Defender,.Castle$,27,35,"1st Guardian Stone",2005,"Conquest::OnGuardianStone1";
-		bg_monster .Defender,.Castle$,207,75,"2st Guardian Stone",2006,"Conquest::OnGuardianStone2";
+		bg_monster .Defender,.Castle$,27,35,"1st Guardian Stone",1905,"Conquest::OnGuardianStone1";
+		bg_monster .Defender,.Castle$,207,75,"2st Guardian Stone",1906,"Conquest::OnGuardianStone2";
 
-		bg_monster .Defender,.Castle$,120,272,"Emperium",2007,"Conquest::OnEmperium";
+		bg_monster .Defender,.Castle$,120,272,"Emperium",3029,"Conquest::OnEmperium";
 		break;
 	case 1: // =========================================================================
 		setwall .Castle$,290,98,8,0,0,"conq_RL00";
+		setwall .Castle$,280,98,8,0,0,"conq_Ra00";
+		setwall .Castle$,281,98,8,0,0,"conq_Ra01";
 		setwall .Castle$,279,98,8,0,1,"conq_RL01";
 		setwall .Castle$,230,213,6,0,1,"conq_RL02";
 		setwall .Castle$,160,141,6,6,1,"conq_RL03";
@@ -234,10 +203,10 @@ OnReadyCheck:
 		bg_monster .Defender,.Castle$,164,140," ",1906,"Conquest::OnBarricade3";
 		bg_monster .Defender,.Castle$,166,140," ",1906,"Conquest::OnBarricade3";
 
-		bg_monster .Defender,.Castle$,231,58,"1st Guardian Stone",2005,"Conquest::OnGuardianStone1";
-		bg_monster .Defender,.Castle$,335,230,"2nd Guardian Stone",2006,"Conquest::OnGuardianStone2";
+		bg_monster .Defender,.Castle$,231,58,"1st Guardian Stone",1905,"Conquest::OnGuardianStone1";
+		bg_monster .Defender,.Castle$,335,230,"2nd Guardian Stone",1906,"Conquest::OnGuardianStone2";
 
-		bg_monster .Defender,.Castle$,162,193,"Emperium",2007,"Conquest::OnEmperium";
+		bg_monster .Defender,.Castle$,162,193,"Emperium",3029,"Conquest::OnEmperium";
 		break;
 	case 2: // =========================================================================
 		setwall .Castle$,326,301,6,6,0,"conq_RL00";
@@ -268,10 +237,10 @@ OnReadyCheck:
 		bg_monster .Defender,.Castle$,284,203," ",1906,"Conquest::OnBarricade3";
 		bg_monster .Defender,.Castle$,284,205," ",1906,"Conquest::OnBarricade3";
 
-		bg_monster .Defender,.Castle$,242,309,"1st Guardian Stone",2005,"Conquest::OnGuardianStone1";
-		bg_monster .Defender,.Castle$,376,251,"2nd Guardian Stone",2006,"Conquest::OnGuardianStone2";
+		bg_monster .Defender,.Castle$,242,309,"1st Guardian Stone",1905,"Conquest::OnGuardianStone1";
+		bg_monster .Defender,.Castle$,376,251,"2nd Guardian Stone",1906,"Conquest::OnGuardianStone2";
 
-		bg_monster .Defender,.Castle$,338,202,"Emperium",2007,"Conquest::OnEmperium";
+		bg_monster .Defender,.Castle$,338,202,"Emperium",3029,"Conquest::OnEmperium";
 		break;
 	case 3: // =========================================================================
 		setwall .Castle$,238,74,8,6,0,"conq_RL00";
@@ -303,11 +272,12 @@ OnReadyCheck:
 		bg_monster .Defender,.Castle$,88,170," ",1906,"Conquest::OnBarricade3";
 		bg_monster .Defender,.Castle$,90,170," ",1906,"Conquest::OnBarricade3";
 
-		bg_monster .Defender,.Castle$,210,234,"1st Guardian Stone",2005,"Conquest::OnGuardianStone1";
-		bg_monster .Defender,.Castle$,308,189,"2nd Guardian Stone",2006,"Conquest::OnGuardianStone2";
+		bg_monster .Defender,.Castle$,210,234,"1st Guardian Stone",1905,"Conquest::OnGuardianStone1";
+		bg_monster .Defender,.Castle$,308,189,"2nd Guardian Stone",1906,"Conquest::OnGuardianStone2";
 
-		bg_monster .Defender,.Castle$,87,219,"Emperium",2007,"Conquest::OnEmperium";
+		bg_monster .Defender,.Castle$,87,219,"Emperium",3029,"Conquest::OnEmperium";
 		break;
+
 	case 4: // =========================================================================
 		setwall .Castle$,136,136,8,6,0,"conq_RL00";
 		setwall .Castle$,150,223,12,6,1,"conq_RL01";
@@ -338,11 +308,16 @@ OnReadyCheck:
 		bg_monster .Defender,.Castle$,44,315," ",1906,"Conquest::OnBarricade3";
 		bg_monster .Defender,.Castle$,46,315," ",1906,"Conquest::OnBarricade3";
 
-		bg_monster .Defender,.Castle$,33,168,"1st Guardian Stone",2005,"Conquest::OnGuardianStone1";
-		bg_monster .Defender,.Castle$,245,168,"2nd Guardian Stone",2006,"Conquest::OnGuardianStone2";
+		bg_monster .Defender,.Castle$,33,168,"1st Guardian Stone",1905,"Conquest::OnGuardianStone1";
+		bg_monster .Defender,.Castle$,245,168,"2nd Guardian Stone",1906,"Conquest::OnGuardianStone2";
 
-		bg_monster .Defender,.Castle$,89,256,"Emperium",2007,"Conquest::OnEmperium";
+		bg_monster .Defender,.Castle$,89,256,"Emperium",3029,"Conquest::OnEmperium";
+		
+		// Desactivamos el warp de cyr por defecto [csnv]
+		disablenpc "deep_cyr";
+		
 		break;
+
 	case 5:  // =========================================================================
 		setwall .Castle$,138,110,8,6,0,"conq_RL00";
 		setwall .Castle$,139,158,6,6,1,"conq_RL01";
@@ -373,11 +348,47 @@ OnReadyCheck:
 		bg_monster .Defender,.Castle$,143,262," ",1906,"Conquest::OnBarricade3";
 		bg_monster .Defender,.Castle$,145,262," ",1906,"Conquest::OnBarricade3";
 
-		bg_monster .Defender,.Castle$,65,171,"1st Guardian Stone",2005,"Conquest::OnGuardianStone1";
-		bg_monster .Defender,.Castle$,212,149,"2nd Guardian Stone",2006,"Conquest::OnGuardianStone2";
+		bg_monster .Defender,.Castle$,65,171,"1st Guardian Stone",1905,"Conquest::OnGuardianStone1";
+		bg_monster .Defender,.Castle$,212,149,"2nd Guardian Stone",1906,"Conquest::OnGuardianStone2";
 
-		bg_monster .Defender,.Castle$,141,293,"Emperium",2007,"Conquest::OnEmperium";
+		bg_monster .Defender,.Castle$,141,293,"Emperium",3029,"Conquest::OnEmperium";
 		break;
+	case 6:  // =========================================================================
+		setwall .Castle$,138,100,8,6,0,"conq_RL00";
+		setwall .Castle$,139,158,6,6,1,"conq_RL01";
+		setwall .Castle$,138,210,8,6,1,"conq_RL02";
+		setwall .Castle$,138,263,8,6,1,"conq_RL03";
+	
+		bg_monster .Defender,.Castle$,138,101," ",1906,"Conquest::OnBarricade0";
+		bg_monster .Defender,.Castle$,140,101," ",1906,"Conquest::OnBarricade0";
+		bg_monster .Defender,.Castle$,142,101," ",1906,"Conquest::OnBarricade0";
+		bg_monster .Defender,.Castle$,144,101," ",1906,"Conquest::OnBarricade0";
+
+		bg_monster .Defender,.Castle$,139,156," ",1906,"Conquest::OnBarricade1";
+		bg_monster .Defender,.Castle$,140,157," ",1906,"Conquest::OnBarricade1";
+		bg_monster .Defender,.Castle$,141,156," ",1906,"Conquest::OnBarricade1";
+		bg_monster .Defender,.Castle$,142,157," ",1906,"Conquest::OnBarricade1";
+		bg_monster .Defender,.Castle$,143,156," ",1906,"Conquest::OnBarricade1";
+		bg_monster .Defender,.Castle$,144,157," ",1906,"Conquest::OnBarricade1";
+
+		bg_monster .Defender,.Castle$,139,208," ",1906,"Conquest::OnBarricade2";
+		bg_monster .Defender,.Castle$,141,208," ",1906,"Conquest::OnBarricade2";
+		bg_monster .Defender,.Castle$,143,208," ",1906,"Conquest::OnBarricade2";
+		bg_monster .Defender,.Castle$,140,209," ",1906,"Conquest::OnBarricade2";
+		bg_monster .Defender,.Castle$,142,209," ",1906,"Conquest::OnBarricade2";
+		bg_monster .Defender,.Castle$,144,209," ",1906,"Conquest::OnBarricade2";
+
+		bg_monster .Defender,.Castle$,139,262," ",1906,"Conquest::OnBarricade3";
+		bg_monster .Defender,.Castle$,141,262," ",1906,"Conquest::OnBarricade3";
+		bg_monster .Defender,.Castle$,143,262," ",1906,"Conquest::OnBarricade3";
+		bg_monster .Defender,.Castle$,145,262," ",1906,"Conquest::OnBarricade3";
+
+		bg_monster .Defender,.Castle$,65,150,"1st Guardian Stone",1905,"Conquest::OnGuardianStone1";
+		bg_monster .Defender,.Castle$,212,149,"2nd Guardian Stone",1906,"Conquest::OnGuardianStone2";
+
+		bg_monster .Defender,.Castle$,141,292,"Emperium",3029,"Conquest::OnEmperium";
+		break;	
+
 	}
 
 	set .Stone, 2;
@@ -426,6 +437,11 @@ OnCheckGStone:
 		mapannounce .Castle$,"Both Guardian Stones has fallen - 6 minutes to destroy the 1st Fortress Gate",1,0xFFA500;
 		killmonster .Castle$,"Conquest::OnBarricade0";
 		delwall "conq_RL00";
+		if (.Index == 1) // Bug de barricada en este mapa[csnv]
+		{
+			delwall "conq_Ra00";
+			delwall "conq_Ra01";
+		}
 	}
 	end;
 
@@ -439,6 +455,7 @@ OnBarricade1:
 		mapannounce .Castle$,"1st Fortress Gate has fallen - 6 minutes to destroy the 2nd",1,0xFFA500;
 		set .Score, .Score + 1;
 		delwall "conq_RL01";
+
 	}
 	end;
 OnBarricade2:
@@ -448,6 +465,11 @@ OnBarricade2:
 		mapannounce .Castle$,"2nd Fortress Gate has fallen - 6 minutes to destroy the 3rd",1,0xFFA500;
 		set .Score, .Score + 1;
 		delwall "conq_RL02";
+		if (.Index == 4) // Warp en arug_cas07 (Cyr) [csnv]
+		{
+			enablenpc "deep_cyr";			
+			mapannounce .Castle$,"A portal to the deepness of the castle has been created on the entrance.",1,0xFFA500;
+		}
 	}
 	end;
 OnBarricade3:
@@ -489,6 +511,10 @@ OnMatchEnd:
 	stopnpctimer;
 	stopnpctimer "Conquest_Respawn";
 	set $@Conquest, 2; // BG Status
+	
+	//[Oboro] Rotacion de BG
+	ChangeBG();
+	
 	killmonster .Castle$,"Conquest::OnBarricade0";
 	killmonster .Castle$,"Conquest::OnBarricade1";
 	killmonster .Castle$,"Conquest::OnBarricade2";
@@ -496,40 +522,21 @@ OnMatchEnd:
 	killmonster .Castle$,"Conquest::OnGuardianStone1";
 	killmonster .Castle$,"Conquest::OnGuardianStone2";
 	killmonster .Castle$,"Conquest::OnEmperium";
+	
 	// =======================================================
 	// Team Rewards
 	// =======================================================
-	set .@Reward, 15 + .Score;
-	set .@Won,2;
 
-	if( .Score >= 6 )
-	{ // Emperium Taken
-		set .@Reward, .@Reward + 9;
-		set .@Won,0;
-	}
+	bg_item(.Atacker, 	(.Score >= 6 ? 1 : 0)); // Ganó Ataque
+	bg_item(.Defender,	(.Score >= 6 ? 0 : 1)); // Ganó Defender
 
-	bg_reward .Atacker,7773,.@Reward,0,8509,"BG_CON",1,6,.@Won;
-
-	set .Score, 6 - .Score; // Switch for Defender
-
-	set .@Reward, 15 + .Score;
-	set .@Won,2;
-
-	if( .Score >= 1 )
-	{ // Emperium Defended
-		set .@Reward, .@Reward + 9;
-		set .@Won,0;
-	}
-
-	bg_reward .Defender,7773,.@Reward,0,8509,"BG_CON",1,6,.@Won;
-	// =======================================================
-	mapannounce .Castle$,"Battle of Conquest will start 15 in seconds!",1,0xFFA500;
+	mapannounce .Castle$,"Battle of Conquest is over!",1,0xFFA500;
 	sleep 2000;
 	bg_destroy $@Conquest_id1;
 	set $@Conquest_id1, 0;
 	bg_destroy $@Conquest_id2;
 	set $@Conquest_id2, 0;
-	mapwarp .Castle$,"bat_room",155,150;
+	mapwarp .Castle$,"arena_4",148,99;
 	sleep 1000;
 	maprespawnguildid .Castle$,0,3; // Just in case someone else
 	delwall "conq_RL00";
@@ -547,147 +554,200 @@ OnMatchEnd:
 // Battleground Therapist
 // *********************************************************************
 
-schg_cas06,260,383,5	script	Therapist in battle#cq1	95,{
-	mes "[Therapist in battle]";
-	mes "Just close your eyes, and take a deep breathe.";
-	mes "You can be free from pain.";
-	specialeffect2 312;
+schg_cas06,260,383,5	script	Therapist in battle#cq1	95,9,9,{
 	percentheal 100,100;
+	sc_start 32,  250000, 10;  // Increase Agi
+	sc_start 30,  250000, 10;  // Blessing
 	repairall;
-	close2;
-	openstorage;
+	end;
+OnTouch:
+	percentheal 100,100;
+	sc_start 32,  250000, 10;  // Increase Agi
+	sc_start 30,  250000, 10;  // Blessing
+	repairall;
 	end;
 }
 
-schg_cas06,299,383,3	script	Therapist in battle#cq2	95,{
-	mes "[Therapist in battle]";
-	mes "Just close your eyes, and take a deep breathe.";
-	mes "You can be free from pain.";
-	specialeffect2 312;
+
+schg_cas06,299,383,3	script	Therapist in battle#cq2	95,9,9,{
 	percentheal 100,100;
+	sc_start 32,  250000, 10;  // Increase Agi
+	sc_start 30,  250000, 10;  // Blessing
 	repairall;
-	close2;
-	openstorage;
+	end;
+OnTouch:
+	percentheal 100,100;
+	sc_start 32,  250000, 10;  // Increase Agi
+	sc_start 30,  250000, 10;  // Blessing
+	repairall;
 	end;
 }
 
-schg_cas07,86,315,5	script	Therapist in battle#cq3	95,{
-	mes "[Therapist in battle]";
-	mes "Just close your eyes, and take a deep breathe.";
-	mes "You can be free from pain.";
-	specialeffect2 312;
+schg_cas07,86,315,5	script	Therapist in battle#cq3	95,9,9,{
 	percentheal 100,100;
+	sc_start 32,  250000, 10;  // Increase Agi
+	sc_start 30,  250000, 10;  // Blessing
 	repairall;
-	close2;
-	openstorage;
+	end;
+OnTouch:
+	percentheal 100,100;
+	sc_start 32,  250000, 10;  // Increase Agi
+	sc_start 30,  250000, 10;  // Blessing
+	repairall;
 	end;
 }
 
-schg_cas07,117,315,3	script	Therapist in battle#cq4	95,{
-	mes "[Therapist in battle]";
-	mes "Just close your eyes, and take a deep breathe.";
-	mes "You can be free from pain.";
-	specialeffect2 312;
+schg_cas07,117,315,3	script	Therapist in battle#cq4	95,9,9,{
 	percentheal 100,100;
+	sc_start 32,  250000, 10;  // Increase Agi
+	sc_start 30,  250000, 10;  // Blessing
 	repairall;
-	close2;
-	openstorage;
+	end;
+OnTouch:
+	percentheal 100,100;
+	sc_start 32,  250000, 10;  // Increase Agi
+	sc_start 30,  250000, 10;  // Blessing
+	repairall;
 	end;
 }
 
-schg_cas08,23,50,6	script	Therapist in battle#cq5	95,{
-	mes "[Therapist in battle]";
-	mes "Just close your eyes, and take a deep breathe.";
-	mes "You can be free from pain.";
-	specialeffect2 312;
+schg_cas08,23,50,6	script	Therapist in battle#cq5	95,9,9,{
 	percentheal 100,100;
+	sc_start 32,  250000, 10;  // Increase Agi
+	sc_start 30,  250000, 10;  // Blessing
 	repairall;
-	close2;
-	openstorage;
+	end;
+OnTouch:
+	percentheal 100,100;
+	sc_start 32,  250000, 10;  // Increase Agi
+	sc_start 30,  250000, 10;  // Blessing
+	repairall;
 	end;
 }
 
-schg_cas08,92,50,4	script	Therapist in battle#cq6	95,{
-	mes "[Therapist in battle]";
-	mes "Just close your eyes, and take a deep breathe.";
-	mes "You can be free from pain.";
-	specialeffect2 312;
+schg_cas08,92,50,4	script	Therapist in battle#cq6	95,9,9,{
 	percentheal 100,100;
+	sc_start 32,  250000, 10;  // Increase Agi
+	sc_start 30,  250000, 10;  // Blessing
 	repairall;
-	close2;
-	openstorage;
+	end;
+OnTouch:
+	percentheal 100,100;
+	sc_start 32,  250000, 10;  // Increase Agi
+	sc_start 30,  250000, 10;  // Blessing
+	repairall;
 	end;
 }
 
-arug_cas06,26,385,5	script	Therapist in battle#cq7	95,{
-	mes "[Therapist in battle]";
-	mes "Just close your eyes, and take a deep breathe.";
-	mes "You can be free from pain.";
-	specialeffect2 312;
+arug_cas06,26,385,5	script	Therapist in battle#cq7	95,9,9,{
 	percentheal 100,100;
+	sc_start 32,  250000, 10;  // Increase Agi
+	sc_start 30,  250000, 10;  // Blessing
 	repairall;
-	close2;
-	openstorage;
+	end;
+OnTouch:
+	percentheal 100,100;
+	sc_start 32,  250000, 10;  // Increase Agi
+	sc_start 30,  250000, 10;  // Blessing
+	repairall;
 	end;
 }
 
-arug_cas06,122,361,5	script	Therapist in battle#cq8	95,{
-	mes "[Therapist in battle]";
-	mes "Just close your eyes, and take a deep breathe.";
-	mes "You can be free from pain.";
-	specialeffect2 312;
+arug_cas06,122,361,5	script	Therapist in battle#cq8	95,9,9,{
 	percentheal 100,100;
+	sc_start 32,  250000, 10;  // Increase Agi
+	sc_start 30,  250000, 10;  // Blessing
 	repairall;
-	close2;
-	openstorage;
+	end;
+OnTouch:
+	percentheal 100,100;
+	sc_start 32,  250000, 10;  // Increase Agi
+	sc_start 30,  250000, 10;  // Blessing
+	repairall;
 	end;
 }
 
-arug_cas07,304,342,3	script	Therapist in battle#cq9	95,{
-	mes "[Therapist in battle]";
-	mes "Just close your eyes, and take a deep breathe.";
-	mes "You can be free from pain.";
-	specialeffect2 312;
+arug_cas07,304,342,3	script	Therapist in battle#cq9	95,9,9,{
 	percentheal 100,100;
+	sc_start 32,  250000, 10;  // Increase Agi
+	sc_start 30,  250000, 10;  // Blessing
 	repairall;
-	close2;
-	openstorage;
+	end;
+OnTouch:
+	percentheal 100,100;
+	sc_start 32,  250000, 10;  // Increase Agi
+	sc_start 30,  250000, 10;  // Blessing
+	repairall;
 	end;
 }
 
-arug_cas07,304,305,1	script	Therapist in battle#cq0	95,{
-	mes "[Therapist in battle]";
-	mes "Just close your eyes, and take a deep breathe.";
-	mes "You can be free from pain.";
-	specialeffect2 312;
+arug_cas07,304,305,1	script	Therapist in battle#cq0	95,9,9,{
 	percentheal 100,100;
+	sc_start 32,  250000, 10;  // Increase Agi
+	sc_start 30,  250000, 10;  // Blessing
 	repairall;
-	close2;
-	openstorage;
+	end;
+OnTouch:
+	percentheal 100,100;
+	sc_start 32,  250000, 10;  // Increase Agi
+	sc_start 30,  250000, 10;  // Blessing
+	repairall;
 	end;
 }
 
-arug_cas08,310,154,6	script	Therapist in battle#cqa	95,{
-	mes "[Therapist in battle]";
-	mes "Just close your eyes, and take a deep breathe.";
-	mes "You can be free from pain.";
-	specialeffect2 312;
+arug_cas08,310,154,6	script	Therapist in battle#cqa	95,9,9,{
 	percentheal 100,100;
+	sc_start 32,  250000, 10;  // Increase Agi
+	sc_start 30,  250000, 10;  // Blessing
 	repairall;
-	close2;
-	openstorage;
+	end;
+OnTouch:
+	percentheal 100,100;
+	sc_start 32,  250000, 10;  // Increase Agi
+	sc_start 30,  250000, 10;  // Blessing
+	repairall;
 	end;
 }
 
-arug_cas08,333,154,4	script	Therapist in battle#cqb	95,{
-	mes "[Therapist in battle]";
-	mes "Just close your eyes, and take a deep breathe.";
-	mes "You can be free from pain.";
-	specialeffect2 312;
+arug_cas08,333,154,4	script	Therapist in battle#cqb	95,9,9,{
 	percentheal 100,100;
+	sc_start 32,  250000, 10;  // Increase Agi
+	sc_start 30,  250000, 10;  // Blessing
 	repairall;
-	close2;
-	openstorage;
+	end;
+OnTouch:
+	percentheal 100,100;
+	sc_start 32,  250000, 10;  // Increase Agi
+	sc_start 30,  250000, 10;  // Blessing
+	repairall;
+	end;
+}
+
+mocg_cas02,313,138,4	script	Therapist in battle#cqmc	95,9,9,{
+	percentheal 100,100;
+	sc_start 32,  250000, 10;  // Increase Agi
+	sc_start 30,  250000, 10;  // Blessing
+	repairall;
+	end;
+OnTouch:
+	percentheal 100,100;
+	sc_start 32,  250000, 10;  // Increase Agi
+	sc_start 30,  250000, 10;  // Blessing
+	repairall;
+	end;
+}
+
+mocg_cas02,312,118,4	script	Therapist in battle#cqmd	95,9,9,{
+	percentheal 100,100;
+	sc_start 32,  250000, 10;  // Increase Agi
+	sc_start 30,  250000, 10;  // Blessing
+	repairall;
+	end;
+OnTouch:
+	percentheal 100,100;
+	sc_start 32,  250000, 10;  // Increase Agi
+	sc_start 30,  250000, 10;  // Blessing
+	repairall;
 	end;
 }
 
@@ -792,6 +852,20 @@ OnTimer25000:
 		{
 			areawarp .@Castle$,310,150,316,157,.@Castle$,.@AX,.@AY;
 			areawarp .@Castle$,327,150,333,157,.@Castle$,.@DX,.@DY;
+		}
+		break;
+	case 6: // arug_cas03 ========================================================================
+		areapercentheal .@Castle$,310,150,316,157,100,100;
+		areapercentheal .@Castle$,327,150,333,157,100,100;
+		if( $@Conquest_id1 == getvariableofnpc(.Defender,"Conquest") )
+		{
+			areawarp .@Castle$,312,118,319,124,.@Castle$,.@DX,.@DY;
+			areawarp .@Castle$,312,139,319,131,.@Castle$,.@AX,.@AY;
+		}
+		else
+		{
+			areawarp .@Castle$,312,118,319,124,.@Castle$,.@AX,.@AY;
+			areawarp .@Castle$,312,139,319,131,.@Castle$,.@DX,.@DY;
 		}
 		break;
 	}
@@ -1781,6 +1855,8 @@ arug_cas06,233,140,4	duplicate(LF_ar06_2)	Mardol#LF_ar06_14	722
 // Flags arug_cas07
 // *********************************************************************
 
+arug_cas07,139,38,0	warp	deep_cyr	1,1,arug_cas07,155,239 // Warp para el pasillo de Cyr [csnv]
+
 arug_cas07,98,270,0	script	LF-01#arug_cas07	111,{
 	if( getcharid(4) == getvariableofnpc(.Defender,"Conquest") )
 	{
@@ -2255,6 +2331,271 @@ arug_cas08,135,103,4	duplicate(LF_ar08_02)	Horn#LF_ar08_11	722
 arug_cas08,63,51,7	duplicate(LF_ar08_02)	Horn#LF_ar08_12	722
 arug_cas08,214,51,1	duplicate(LF_ar08_02)	Horn#LF_ar08_13	722
 
+// Flags mocg_cas02
+// *********************************************************************
+
+mocg_cas02,128,322,0	script	LF-01#mocg_cas02	111,{
+	if( getcharid(4) == getvariableofnpc(.Defender,"Conquest") )
+	{
+		mes "^3355FFThis is the Stronghold";
+		mes "Teleport Service. Please";
+		mes "choose a destination";
+		mes "within the stronghold.^000000";
+		switch( select("First Gate House:Second Gate House:Cancel") )
+		{
+		case 1:
+			warp "mocg_cas02",80,136;
+			end;
+		case 2:
+			warp "mocg_cas02",197,136;
+			end;
+		case 3:
+			close;
+		}
+	}
+	end;
+}
+
+mocg_cas02,131,322,0	script	LF-02#mocg_cas02	111,{
+	if( getcharid(4) == getvariableofnpc(.Defender,"Conquest") )
+	{
+		mes "^3355FFThis is the Stronghold";
+		mes "Teleport Service. Please";
+		mes "choose a destination";
+		mes "within the stronghold.^000000";
+		switch( select("Defense Area 1-1:Defense Area 1-2:Cancel") )
+		{
+		case 1:
+			warp "mocg_cas02",65,94;
+			end;
+		case 2:
+			warp "mocg_cas02",212,94;
+			end;
+		case 3:
+			close;
+		}
+	}
+	end;
+}
+
+mocg_cas02,134,322,0	script	LF-03#mocg_cas02	111,{
+	if( getcharid(4) == getvariableofnpc(.Defender,"Conquest") )
+	{
+		mes "^3355FFThis is the Stronghold";
+		mes "Teleport Service. Please";
+		mes "choose a destination";
+		mes "within the stronghold.^000000";
+		switch( select("Defense Area 1-3:Defense Area 1-4:Cancel") )
+		{
+		case 1:
+			warp "mocg_cas02",108,90;
+			end;
+		case 2:
+			warp "mocg_cas02",176,90;
+			end;
+		case 3:
+			close;
+		}
+	}
+	end;
+}
+
+mocg_cas02,137,322,0	script	LF-04#mocg_cas02	111,{
+	if( getcharid(4) == getvariableofnpc(.Defender,"Conquest") )
+	{
+		mes "^3355FFThis is the Stronghold";
+		mes "Teleport Service. Please";
+		mes "choose a destination";
+		mes "within the stronghold.^000000";
+		switch( select("Defense Area 2-1:Defense Area 2-2:Cancel") )
+		{
+		case 1:
+			warp "mocg_cas02",113,143;
+			end;
+		case 2:
+			warp "mocg_cas02",170,143;
+			end;
+		case 3:
+			close;
+		}
+	}
+	end;
+}
+
+mocg_cas02,140,322,0	script	LF-05#mocg_cas02	111,{
+	if( getcharid(4) == getvariableofnpc(.Defender,"Conquest") )
+	{
+		mes "^3355FFThis is the Stronghold";
+		mes "Teleport Service. Please";
+		mes "choose a destination";
+		mes "within the stronghold.^000000";
+		switch( select("Defense Area 2-3:Defense Area 2-4:Cancel") )
+		{
+		case 1:
+			warp "mocg_cas02",123,188;
+			end;
+		case 2:
+			warp "mocg_cas02",160,188;
+			end;
+		case 3:
+			close;
+		}
+	}
+	end;
+}
+
+mocg_cas02,143,322,0	script	LF-06#mocg_cas02	111,{
+	if( getcharid(4) == getvariableofnpc(.Defender,"Conquest") )
+	{
+		mes "^3355FFThis is the Stronghold";
+		mes "Teleport Service. Please";
+		mes "choose a destination";
+		mes "within the stronghold.^000000";
+		switch( select("Defense Area 3-1:Defense Area 3-2:Cancel") )
+		{
+		case 1:
+			warp "mocg_cas02",116,235;
+			end;
+		case 2:
+			warp "mocg_cas02",164,235;
+			end;
+		case 3:
+			close;
+		}
+	}
+	end;
+}
+
+mocg_cas02,146,322,0	script	LF-07#mocg_cas02	111,{
+	if( getcharid(4) == getvariableofnpc(.Defender,"Conquest") )
+	{
+		mes "^3355FFThis is the Stronghold";
+		mes "Teleport Service. Please";
+		mes "choose a destination";
+		mes "within the stronghold.^000000";
+		switch( select("Defense Area 1-1:Defense Area 2-1:Defense Area 3-1:Cancel") )
+		{
+		case 1:
+			warp "mocg_cas02",65,94;
+			end;
+		case 2:
+			warp "mocg_cas02",113,143;
+			end;
+		case 3:
+			warp "mocg_cas02",116,235;
+			end;
+		case 4:
+			close;
+		}
+	}
+	end;
+}
+
+mocg_cas02,149,322,0	script	LF-08#mocg_cas02	111,{
+	if( getcharid(4) == getvariableofnpc(.Defender,"Conquest") )
+	{
+		mes "^3355FFThis is the Stronghold";
+		mes "Teleport Service. Please";
+		mes "choose a destination";
+		mes "within the stronghold.^000000";
+		switch( select("Defense Area 1-2:Defense Area 2-2:Defense Area 3-2:Cancel") )
+		{
+		case 1:
+			warp "mocg_cas02",212,94;
+			end;
+		case 2:
+			warp "mocg_cas02",170,143;
+			end;
+		case 3:
+			warp "mocg_cas02",164,235;
+			end;
+		case 4:
+			close;
+		}
+	}
+	end;
+}
+
+mocg_cas02,152,322,0	script	LF-09#mocg_cas02	111,{
+	if( getcharid(4) == getvariableofnpc(.Defender,"Conquest") )
+	{
+		mes "^3355FFThis is the Stronghold";
+		mes "Teleport Service. Please";
+		mes "choose a destination";
+		mes "within the stronghold.^000000";
+		switch( select("Defense Area 1-4:Defense Area 2-4:Cancel") )
+		{
+		case 1:
+			warp "mocg_cas02",176,90;
+			end;
+		case 2:
+			warp "mocg_cas02",160,188;
+			end;
+		case 3:
+			close;
+		}
+	}
+	end;
+}
+
+mocg_cas02,51,156,0	script	Iset#LF_mo02_01::LF_mo02_01	111,{
+	if( getcharid(4) == getvariableofnpc(.Defender,"Conquest") )
+	{
+		mes "^3355FFThis is the Stronghold";
+		mes "Teleport Service. Would";
+		mes "you like to teleport to";
+		mes "the Emperium Center?^000000";
+		switch( select("Teleport:Cancel") )
+		{
+		case 1:
+			warp "mocg_cas02",142,312;
+			end;
+		case 2:
+			close;
+		}
+	}
+	end;
+}
+
+mocg_cas02,226,156,0	duplicate(LF_mo02_01)	Iset#LF_mo02_01	111
+mocg_cas02,136,73,4	duplicate(LF_mo02_01)	Iset#LF_mo02_02	111
+mocg_cas02,147,73,4	duplicate(LF_mo02_01)	Iset#LF_mo02_03	111
+mocg_cas02,123,154,0	duplicate(LF_mo02_01)	Iset#LF_mo02_04	111
+mocg_cas02,160,154,0	duplicate(LF_mo02_01)	Iset#LF_mo02_05	111
+mocg_cas02,135,205,0	duplicate(LF_mo02_01)	Iset#LF_mo02_06	111
+mocg_cas02,148,205,0	duplicate(LF_mo02_01)	Iset#LF_mo02_07	111
+mocg_cas02,137,241,0	duplicate(LF_mo02_01)	Iset#LF_mo02_08	111
+mocg_cas02,146,241,0	duplicate(LF_mo02_01)	Iset#LF_mo02_09	111
+mocg_cas02,118,267,0	duplicate(LF_mo02_01)	Iset#LF_mo02_14	111
+mocg_cas02,166,267,0	duplicate(LF_mo02_01)	Iset#LF_mo02_15	111
+
+mocg_cas02,145,60,4	script	Iset#LF_mo03_10::LF_mo03_02	722,{
+	if( getcharid(4) == getvariableofnpc(.Defender,"Conquest") )
+	{
+		mes "^3355FFThis is the Stronghold";
+		mes "Teleport Service. Would";
+		mes "you like to teleport to";
+		mes "the Emperium Center?^000000";
+		switch( select("Teleport:Cancel") )
+		{
+		case 1:
+			warp "mocg_cas02",142,312;
+			end;
+		case 2:
+			close;
+		}
+	}
+	end;
+
+OnEmblemConquest:
+	FlagEmblem getvariableofnpc(.Defender,"Conquest");
+	end;
+}
+
+mocg_cas02,138,60,4	duplicate(LF_mo03_02)	Iset#LF_mo03_11	722
+mocg_cas02,63,51,7	duplicate(LF_mo03_02)	Iset#LF_mo03_12	722
+mocg_cas02,214,51,1	duplicate(LF_mo03_02)	Iset#LF_mo03_13	722
+
 // MapFlags
 // *********************************************************************
 
@@ -2317,3 +2658,14 @@ arug_cas08	mapflag	nowarpto
 arug_cas08	mapflag	noreturn
 arug_cas08	mapflag	nobranch
 arug_cas08	mapflag	nopenalty
+
+
+mocg_cas02	mapflag	battleground
+mocg_cas02	mapflag	nomemo
+mocg_cas02	mapflag	nosave	SavePoint
+mocg_cas02	mapflag	noteleport
+mocg_cas02	mapflag	nowarp
+mocg_cas02	mapflag	nowarpto
+mocg_cas02	mapflag	noreturn
+mocg_cas02	mapflag	nobranch
+mocg_cas02	mapflag	nopenalty

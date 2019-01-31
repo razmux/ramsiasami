@@ -73,7 +73,7 @@ map-server: obj $(MAP_DIR_OBJ) $(COMMON_AR) $(LIBCONFIG_AR)
 # map object files
 
 obj/%.o: %.c $(MAP_H) $(COMMON_H)  $(MT19937AR_H) $(LIBCONFIG_H)
-	@echo "	CC	$<"
+	@echo "	[MAP]	$<"
 	@@CC@ @CFLAGS@ $(COMMON_INCLUDE) $(MT19937AR_INCLUDE) $(LIBCONFIG_INCLUDE) $(PCRE_CFLAGS) @MYSQL_CFLAGS@ @CPPFLAGS@ -c $(OUTPUT_OPTION) $<
 
 # missing object files

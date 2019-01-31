@@ -1,40 +1,7 @@
-// (c) 2008 - 2012 eAmod Project; Andres Garbanzo / Zephyrus
-//
-//  - gaiaro.staff@yahoo.com
-//  - MSN andresjgm.cr@hotmail.com
-//  - Skype: Zephyrus_cr
-//  - Site: http://dev.terra-gaming.com
-//
-// This file is NOT public - you are not allowed to distribute it.
-// Authorized Server List : http://dev.terra-gaming.com/index.php?/topic/72-authorized-eamod-servers/
-// eAmod is a non Free, extended version of eAthena Ragnarok Private Server.
-
 // ==============================================================================
 // BattleGround System - Flavius Capture the Flag
 // ==============================================================================
 
-// Registration NPC's
-// *********************************************************************
-
-bat_room,57,74,0	script	Registration::CTFR_Guillaume	418,{
-	end;
-OnInit:
-	waitingroom "Battle Station 5 Players",6,"Flavius_CTF::OnGuillaumeJoin",1;
-	end;
-OnEnterBG:
-	set $@FlaviusCTF_id1, waitingroom2bg("bat_b02",390,10,0,"Flavius_CTF::OnGuillaumeQuit","Flavius_CTF::OnGuillaumeDie");
-	end;
-}
-
-bat_room,57,97,4	script	Registration::CTFR_Croix	414,{
-	end;
-OnInit:
-	waitingroom "Battle Station 5 Players",6,"Flavius_CTF::OnCroixJoin",1;
-	end;
-OnEnterBG:
-	set $@FlaviusCTF_id2, waitingroom2bg("bat_b02",10,290,1,"Flavius_CTF::OnCroixQuit","Flavius_CTF::OnCroixDie");
-	end;
-}
 
 // Battleground Flags
 // *********************************************************************
@@ -223,7 +190,8 @@ OnInit:
 	end;
 
 OnGuillaumeQuit:
-	setquest 8506; // Deserter
+OnCroixQuit:
+	callfunc("bgsetwaittime","CTF",180);
 	set @killer_bg_src, 0;
 	if( $@FlaviusCTF != 0 )
 		donpcevent "Flavius_CTF::OnDoBalance";
@@ -243,11 +211,6 @@ OnGuillaumeDie:
 	}
 	end;
 	
-OnCroixQuit:
-	setquest 8506; // Deserter
-	set @killer_bg_src, 0;
-	if( $@FlaviusCTF != 0 )
-		donpcevent "Flavius_CTF::OnDoBalance";
 OnCroixDie:
 	if( $@FlaviusCTF == 1 && getvariableofnpc(.Flag_Carrier,"Guillaume_Flag") == getcharid(0) )
 	{ // Drop Flag
@@ -280,13 +243,13 @@ OnDoBalance:
 	set .@Croix, bg_get_data($@FlaviusCTF_id2, 0);
 
 	if( .@Guillaume < .@Croix )
-		waitingroom2bg_single $@FlaviusCTF_id1,"bat_b02",311,224,"CTFR_Guillaume";
+		waitingroom2bg_single $@FlaviusCTF_id1,"bat_b02",311,224,"BGAZUL";
 	else if( .@Guillaume > .@Croix )
-		waitingroom2bg_single $@FlaviusCTF_id2,"bat_b02",87,75,"CTFR_Croix";
+		waitingroom2bg_single $@FlaviusCTF_id2,"bat_b02",87,75,"BGROJO";
 	else
 	{
-		set .@GuillaumeR, getwaitingroomstate(0,"CTFR_Guillaume");
-		set .@CroixR, getwaitingroomstate(0,"CTFR_Croix");
+		set .@GuillaumeR, getwaitingroomstate(0,"BGAZUL");
+		set .@CroixR, getwaitingroomstate(0,"BGROJO");
 
 		if( .@GuillaumeR <= .@CroixR )
 			set .@Limit, .@GuillaumeR;
@@ -299,39 +262,39 @@ OnDoBalance:
 
 		for( set .@i, 0; .@i < .@Limit; set .@i, .@i + 1 )
 		{
-			waitingroom2bg_single $@FlaviusCTF_id1,"bat_b02",311,224,"CTFR_Guillaume";
-			waitingroom2bg_single $@FlaviusCTF_id2,"bat_b02",87,75,"CTFR_Croix";
+			waitingroom2bg_single $@FlaviusCTF_id1,"bat_b02",311,224,"BGAZUL";
+			waitingroom2bg_single $@FlaviusCTF_id2,"bat_b02",87,75,"BGROJO";
 		}
 
 		set .@Guillaume, .@Guillaume + .@Limit;
 		set .@Croix, .@Croix + .@Limit;
-		mapannounce "bat_room","Battleground -- Flavius CTF [80-99] G: " + .@Guillaume + "/35, C: " + .@Croix + "/35 (Playing)",1,0xA0522D;
+		mapannounce "arena_4","Battleground -- Flavius CTF [80-99] G: " + .@Guillaume + "/35, C: " + .@Croix + "/35 (Playing)",1,0xA0522D;
 	}
 	end;
 
 OnReadyCheck:
-	if( $@FlaviusCTF )
+	if( $@FlaviusCTF || $CURRENTBG != 5 )
 		end;
-	set .@Guillaume, getwaitingroomstate(0,"CTFR_Guillaume");
-	set .@Croix, getwaitingroomstate(0,"CTFR_Croix");
+	set .@Guillaume, getwaitingroomstate(0,"BGAZUL");
+	set .@Croix, getwaitingroomstate(0,"BGROJO");
 	
-	if( .@Guillaume < 5 || .@Croix < 5 )
+	if( .@Guillaume < ($MINBGLIMIT - 1) || .@Croix < ($MINBGLIMIT - 1) )
 	{
 		if( .@Guillaume > 3 && .@Croix > 3 && !agitcheck() && $@FlaviusCTF_Flood < gettimetick(2) )
 		{
-			announce "Battleground -- Flavius CTF [80-99] G: " + .@Guillaume + "/5, C: " + .@Croix + "/5",0,0xA0522D;
+			announce "Battleground -- Flavius CTF [80-99] G: " + .@Guillaume + "/"+($MINBGLIMIT - 1)+", C: " + .@Croix + "/"+($MINBGLIMIT - 1),0,0xA0522D;
 			set $@FlaviusCTF_Flood, gettimetick(2) + 15;
 		}
 		else
-			mapannounce "bat_room","Battleground -- Flavius CTF [80-99] G: " + .@Guillaume + "/5, C: " + .@Croix + "/5",1,0xA0522D;
+			mapannounce "arena_4","Battleground -- Flavius CTF [80-99] G: " + .@Guillaume + "/"+($MINBGLIMIT - 1)+", C: " + .@Croix + "/"+($MINBGLIMIT - 1),1,0xA0522D;
 		end;
 	}
 
 	set $@FlaviusCTF, 1;
 	initnpctimer;
 
-	donpcevent "CTFR_Croix::OnEnterBG";
-	donpcevent "CTFR_Guillaume::OnEnterBG";
+	donpcevent "BGROJO::OnEnterBG";
+	donpcevent "BGAZUL::OnEnterBG";
 	// BG Variables
 	set .Guillaume_Score, 0;
 	set .Croix_Score, 0;
@@ -422,31 +385,41 @@ OnMatchEnd:
 	disablenpc "Croix_Flag";
 	donpcevent "#guictf_respawn::OnBGStop";
 	donpcevent "#croctf_respawn::OnBGStop";
-	set $@FlaviusCTF, 2;
+	set $@FlaviusCTF, 2; //bg_status
+	
+	//[Oboro] Rotacion de BG
+	ChangeBG();
+	
 	// =======================================================
 	// Team Rewards
 	// =======================================================
 	if( .Guillaume_Score > .Croix_Score )
 	{
-		bg_reward $@FlaviusCTF_id1,7829,15 + .Guillaume_Score,0,8504,"BG_CTF",1,3,0;
-		bg_reward $@FlaviusCTF_id2,7829,10 + .Croix_Score,0,8504,"BG_CTF",1,3,2;
+		// Ganó Guillaume
+		bg_item($@FlaviusCTF_id1, 1);
+		bg_item($@FlaviusCTF_id2, 0);
 	}
 	else if( .Croix_Score > .Guillaume_Score )
 	{
-		bg_reward $@FlaviusCTF_id1,7829,10 + .Guillaume_Score,0,8504,"BG_CTF",1,3,2;
-		bg_reward $@FlaviusCTF_id2,7829,15 + .Croix_Score,0,8504,"BG_CTF",1,3,0;
+		// Ganó Croix
+		bg_item($@FlaviusCTF_id1, 0);
+		bg_item($@FlaviusCTF_id2, 1);
 	}
 	else
 	{
-		bg_reward $@FlaviusCTF_id1,7829,10 + .Guillaume_Score,0,8504,"BG_CTF",1,3,1;
-		bg_reward $@FlaviusCTF_id2,7829,10 + .Croix_Score,0,8504,"BG_CTF",1,3,1;
+		// Empate, perdida ambos por default
+		bg_item($@FlaviusCTF_id1, 0);
+		bg_item($@FlaviusCTF_id2, 0);
 	}
-	// =======================================================
+
+	mapannounce "bat_b02","Battle of Flavius CTF will start in 0 seconds!",1,0xA0522D;
 	sleep 2000;
-	bg_warp $@FlaviusCTF_id1,"bat_b02",390,10;
-	bg_warp $@FlaviusCTF_id2,"bat_b02",10,290;
+	bg_destroy $@FlaviusCTF_id1;
+	bg_destroy $@FlaviusCTF_id2;
+	set $@FlaviusCTF_id1, 0;
+	set $@FlaviusCTF_id2, 0;
+	mapwarp "bat_b02","arena_4",148,99;
 	sleep 3000;
-	mapannounce "bat_b02","Battle of Flavius CTF will start in 15 seconds!",1,0xA0522D;
 	initnpctimer;
 	end;
 
@@ -464,12 +437,8 @@ OnReset:
 	set .Croix_Score, 0;
 	disablenpc "Guillaume_Flag";
 	disablenpc "Croix_Flag";
-	bg_destroy $@FlaviusCTF_id1;
-	bg_destroy $@FlaviusCTF_id2;
-	set $@FlaviusCTF_id1, 0;
-	set $@FlaviusCTF_id2, 0;
 	sleep 1000;
-	mapwarp "bat_b02","bat_room",155,150;
+	mapwarp "bat_b02","arena_4",148,99;
 	sleep 1000;
 	maprespawnguildid "bat_b02",0,3; // Just in case someone else
 	bg_updatescore "bat_b02",0,0;
@@ -482,44 +451,30 @@ OnReset:
 // *********************************************************************
 
 bat_b02,390,13,5	script	Therapist in battle#ctf1	95,{
-	switch( $@FlaviusCTF )
-	{
-	case 2:
-		bg_leave;
-		warp "bat_room",155,150;
-		break;
-	case 1:
-		mes "[Therapist in battle]";
-		mes "Just close your eyes, and take a deep breathe.";
-		mes "You can be free from pain.";
-		specialeffect2 312;
-		percentheal 100,100;
-		repairall;
-		close2;
-		openstorage;
-		break;
-	}
+	percentheal 100,100;
+	sc_start 32,  250000, 10;  // Increase Agi
+	sc_start 30,  250000, 10;  // Blessing
+	repairall;
+	end;
+OnTouch:
+	percentheal 100,100;
+	sc_start 32,  250000, 10;  // Increase Agi
+	sc_start 30,  250000, 10;  // Blessing
+	repairall;
 	end;
 }
 
 bat_b02,10,293,5	script	Therapist in battle#ctf2	95,{
-	switch( $@FlaviusCTF )
-	{
-	case 2:
-		bg_leave;
-		warp "bat_room",155,150;
-		break;
-	case 1:
-		mes "[Therapist in battle]";
-		mes "Just close your eyes, and take a deep breathe.";
-		mes "You can be free from pain.";
-		specialeffect2 312;
-		percentheal 100,100;
-		repairall;
-		close2;
-		openstorage;
-		break;
-	}
+	percentheal 100,100;
+	sc_start 32,  250000, 10;  // Increase Agi
+	sc_start 30,  250000, 10;  // Blessing
+	repairall;
+	end;
+OnTouch:
+	percentheal 100,100;
+	sc_start 32,  250000, 10;  // Increase Agi
+	sc_start 30,  250000, 10;  // Blessing
+	repairall;
 	end;
 }
 

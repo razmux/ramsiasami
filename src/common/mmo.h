@@ -21,7 +21,7 @@
 // see conf/battle/client.conf for other version
 
 #ifndef PACKETVER
-	#define PACKETVER 20101124
+	#define PACKETVER 20130807
 	//#define PACKETVER 20120410
 #endif
 
@@ -402,6 +402,12 @@ struct hotkey {
 };
 #endif
 
+struct oboro_pvp {
+	unsigned int 
+		kill,
+		dead;
+};
+
 struct s_killrank {
 	unsigned short
 		kill_count,
@@ -597,6 +603,9 @@ struct mmo_charstatus {
 	bool show_equip,allow_party;
 	unsigned char iprank;
 	short rename;
+
+	struct oboro_pvp oboropvp; // [Oboro]
+
 
 	time_t delete_date;
 	time_t unban_time;

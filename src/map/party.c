@@ -621,6 +621,8 @@ int party_member_withdraw(int party_id, uint32 account_id, uint32 char_id)
 			memset(&p->data[i], 0, sizeof(p->data[0]));
 			p->party.count--;
 			party_check_state(p);
+			clif_party_info(p, NULL);
+
 		}
 	}
 

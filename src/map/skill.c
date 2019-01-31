@@ -37,6 +37,7 @@
 #include "unit.h"
 #include "achievement.h"
 #include "faction.h"
+#include "oboro.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -630,6 +631,7 @@ static int8 skill_isCopyable(struct map_session_data *sd, uint16 skill_idx) {
  * @param sd: Player who casted
  * @return true: Skill cannot be used, false: otherwise
  * @author [MouseJstr]
+ * [Isaac] Oboro CP @hold
  */
 bool skill_isNotOk(uint16 skill_id, struct map_session_data *sd)
 {
@@ -637,7 +639,7 @@ bool skill_isNotOk(uint16 skill_id, struct map_session_data *sd)
 	nullpo_retr(1,sd);
 	m = sd->bl.m;
 	idx = skill_get_index(skill_id);
-
+	
 	if (idx == 0)
 		return true; // invalid skill id
 
@@ -649,7 +651,7 @@ bool skill_isNotOk(uint16 skill_id, struct map_session_data *sd)
 
 	if (map[m].flag.noskill)
 		return true;
-
+	
 	// Epoque:
 	// This code will compare the player's attack motion value which is influenced by ASPD before
 	// allowing a skill to be cast. This is to prevent no-delay ACT files from spamming skills such as
@@ -4420,7 +4422,7 @@ int skill_castend_damage_id (struct block_list* src, struct block_list *bl, uint
 	case AS_SONICBLOW:
 	case KN_PIERCE:
 	case ML_PIERCE:
-	case KN_SPEARBOOMERANG:
+	//case KN_SPEARBOOMERANG: [Oboro]
 	case TF_POISON:
 	case TF_SPRINKLESAND:
 	case AC_CHARGEARROW:
@@ -4529,6 +4531,17 @@ int skill_castend_damage_id (struct block_list* src, struct block_list *bl, uint
 	case RL_AM_BLAST:
 		skill_attack(BF_WEAPON,src,src,bl,skill_id,skill_lv,tick,flag);
 		break;
+
+	// rework LK [Isaac]
+	case KN_SPEARBOOMERANG:
+	{
+		skill_area_temp[1] = bl->id; 
+
+		map_foreachinpath (skill_attack_area,src->m,src->x,src->y,bl->x,bl->y,
+			skill_get_splash(skill_id, skill_lv),skill_get_maxcount(skill_id,skill_lv), splash_target(src),
+			skill_get_type(skill_id),src,src,skill_id,skill_lv,tick,flag,BCT_ENEMY);
+	}
+	break;
 
 	case NC_BOOSTKNUCKLE:
 	case NC_PILEBUNKER:
@@ -8356,6 +8369,14 @@ int skill_castend_nodamage_id (struct block_list *src, struct block_list *bl, ui
 
 	case PF_MINDBREAKER:
 		{
+			/* ISAAC FIX */
+			if (sd && map[sd->bl.m].flag.battleground)
+			{
+				clif_skill_fail(sd,skill_id,USESKILL_FAIL_LEVEL,0);
+				map_freeblock_unlock();
+				return 0;
+			}
+
 			if(status_has_mode(tstatus,MD_STATUS_IMMUNE) || battle_check_undead(tstatus->race,tstatus->def_ele)) {
 				map_freeblock_unlock();
 				return 1;
@@ -8642,15 +8663,28 @@ int skill_castend_nodamage_id (struct block_list *src, struct block_list *bl, ui
 			break;
 		}
 	case SL_SKA: // [marquis007]
-	case SL_SKE:
 		if (sd && !battle_config.allow_es_magic_pc && bl->type != BL_MOB) {
 			clif_skill_fail(sd,skill_id,USESKILL_FAIL_LEVEL,0);
 			status_change_start(src,src,SC_STUN,10000,skill_lv,0,0,0,500,SCSTART_NOTICKDEF|SCSTART_NORATEDEF);
 			break;
 		}
 		clif_skill_nodamage(src,bl,skill_id,skill_lv,sc_start(src,bl,type,100,skill_lv,skill_get_time(skill_id,skill_lv)));
-		if (skill_id == SL_SKE)
-			sc_start(src,src,SC_SMA,100,skill_lv,skill_get_time(SL_SMA,skill_lv));
+		break;
+
+	case SL_SKE: // [Oboro]
+		if ( (sd && !(dstsd && (dstsd->class_&JOBL_UPPER))) || !dstsd->sc.data[SC_SPIRIT] ) 
+		{
+			clif_displaymessage(sd->fd,"Target must be linked and/or be Tranc. job");
+			clif_skill_fail(sd,skill_id,USESKILL_FAIL_LEVEL,0);
+			status_change_start(src,src,SC_STUN,10000,skill_lv,0,0,0,500,10);
+			break;
+		}
+	
+		if ( bl->type == BL_MOB )
+			break;
+
+		clif_skill_nodamage(src,bl,skill_id,skill_lv,sc_start(src,bl,type,100,skill_lv,skill_get_time(skill_id,skill_lv)));
+		sc_start(src,src,SC_SMA,100,skill_lv,skill_get_time(SL_SMA,skill_lv));
 		break;
 
 	// New guild skills [Celest]
@@ -11181,6 +11215,8 @@ int skill_castend_id(int tid, unsigned int tick, int id, intptr_t data)
 	struct unit_data *ud;
 	struct status_change *sc = NULL;
 	int flag = 0;
+	unsigned int before_fixed = 0, oboro_fixed = 0; //isaac (nvm) needs hard delays
+	char message[256];
 
 	src = map_id2bl(id);
 	if( src == NULL )
@@ -11350,6 +11386,32 @@ int skill_castend_id(int tid, unsigned int tick, int id, intptr_t data)
 			int cooldown = pc_get_skillcooldown(sd,ud->skill_id, ud->skill_lv); // Increases/Decreases cooldown of a skill by item/card bonuses.
 			if(cooldown) skill_blockpc_start(sd, ud->skill_id, cooldown);
 		}
+
+		// [ISAAC] OBORO DELAYS START
+		if (sd && ud->skill_id && battle_config.oboro_enable > 0 &&
+			(
+				map[sd->bl.m].flag.battleground || 
+				map[sd->bl.m].flag.gvg || 
+				map[sd->bl.m].flag.gvg_castle || 
+				map[sd->bl.m].flag.woe_set ||
+				map[sd->bl.m].flag.blocked
+			)
+		)
+		{
+			before_fixed = ud->canact_tick;
+			if (Oboro_FixedDelays(sd, ud->skill_id) != 0)
+				oboro_fixed = ud->canact_tick + Oboro_FixedDelays(sd, ud->skill_id);
+			else
+				oboro_fixed = ud->canact_tick + 70;
+			
+			ud->canact_tick = max(ud->canact_tick, oboro_fixed);
+			if (sd->state.oboro_showinfo)
+			{
+				sprintf(message, "TICK:%03d OBORO:%d FIXD:%03d  SLCT: %03d", before_fixed, Oboro_FixedDelays(sd, ud->skill_id), oboro_fixed, ud->canact_tick);
+				clif_disp_overhead(&sd->bl, message);
+			}
+		}
+
 		if( battle_config.display_status_timers && sd )
 			clif_status_change(src, SI_ACTIONDELAY, 1, skill_delayfix(src, ud->skill_id, ud->skill_lv), 0, 0, 0);
 		if( sd && sd->skillitem != ud->skill_id )
@@ -11498,6 +11560,8 @@ int skill_castend_pos(int tid, unsigned int tick, int id, intptr_t data)
 	struct map_session_data *sd;
 	struct unit_data *ud = unit_bl2ud(src);
 	struct mob_data *md;
+	unsigned int before_fixed = 0, oboro_fixed = 0; //isaac Oboro CP
+	char message[256];
 
 	nullpo_ret(ud);
 
@@ -11601,6 +11665,32 @@ int skill_castend_pos(int tid, unsigned int tick, int id, intptr_t data)
 			int cooldown = pc_get_skillcooldown(sd,ud->skill_id, ud->skill_lv);
 			if(cooldown) skill_blockpc_start(sd, ud->skill_id, cooldown);
 		}
+
+		// [ISAAC] OBORO DELAYS START
+		if (sd && ud->skill_id && battle_config.oboro_enable > 0 &&
+			(
+				map[sd->bl.m].flag.battleground || 
+				map[sd->bl.m].flag.gvg || 
+				map[sd->bl.m].flag.gvg_castle || 
+				map[sd->bl.m].flag.woe_set ||
+				map[sd->bl.m].flag.blocked
+			)
+		)
+		{
+			before_fixed = ud->canact_tick;
+			if (Oboro_FixedDelays(sd, ud->skill_id) != 0)
+				oboro_fixed = ud->canact_tick + Oboro_FixedDelays(sd, ud->skill_id);
+			else
+				oboro_fixed = ud->canact_tick + 70;
+			
+			ud->canact_tick = max(ud->canact_tick, oboro_fixed);
+			if (sd->state.oboro_showinfo)
+			{
+				sprintf(message, "TICK:%03d OBORO:%d FIXD:%03d  SLCT: %03d", before_fixed, Oboro_FixedDelays(sd, ud->skill_id), oboro_fixed, ud->canact_tick);
+				clif_disp_overhead(&sd->bl, message);
+			}
+		}
+
 		if( battle_config.display_status_timers && sd )
 			clif_status_change(src, SI_ACTIONDELAY, 1, skill_delayfix(src, ud->skill_id, ud->skill_lv), 0, 0, 0);
 		if( sd && sd->skillitem != ud->skill_id )
@@ -12112,6 +12202,14 @@ int skill_castend_pos2(struct block_list* src, int x, int y, uint16 skill_id, ui
 		}
 		else
 		{
+		// [Oboro]
+			if (map[sd->bl.m].flag.woe_set ) 
+			{
+				clif_displaymessage(sd->fd, "You can't use gospel on this map"); //isaac
+				status_change_end(src, SC_GOSPEL, INVALID_TIMER);
+				return 0;
+
+			}
 			sg = skill_unitsetting(src,skill_id,skill_lv,src->x,src->y,0);
 			if (!sg) break;
 			if (sce)
@@ -12759,6 +12857,16 @@ struct skill_unit_group *skill_unitsetting(struct block_list *src, uint16 skill_
 	hidden = (unit_flag&UF_HIDDEN_TRAP && (battle_config.traps_setting == 2 || (battle_config.traps_setting == 1 && map_flag_vs(src->m))));
 
 	switch( skill_id ) {
+	case NJ_BAKUENRYU: 
+		// [Oboro] FIX PT. 536 
+		if ( map_getcell(src->m, src->x, src->y, CELL_CHKLANDPROTECTOR) )
+		{
+			clif_displaymessage(sd->fd,"You can't use this skill on someone on land protector");
+			map_freeblock_unlock();
+			return 0;
+		}
+		break;
+
 	case MH_STEINWAND:
 		val2 = 4 + skill_lv;
 		val3 = 300 * skill_lv + 65 * ( status->int_ +  status_get_lv(src) ) + status->max_sp; //nb hp

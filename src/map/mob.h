@@ -15,7 +15,7 @@
 // Be sure to note that IDs 4001 to 4048 are reserved for advanced/baby/expanded classes.
 // Notice that the last 1000 entries are used for player clones, so always set this to desired value +1000
 #define MIN_MOB_DB 1000
-#define MAX_MOB_DB 5000
+#define MAX_MOB_DB 6000
 
 //The number of drops all mobs have and the max drop-slot that the steal skill will attempt to steal from.
 #define MAX_MOB_DROP 10

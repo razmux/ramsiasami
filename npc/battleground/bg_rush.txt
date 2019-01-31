@@ -1,41 +1,9 @@
-// (c) 2008 - 2012 eAmod Project; Andres Garbanzo / Zephyrus
-//
-//  - gaiaro.staff@yahoo.com
-//  - MSN andresjgm.cr@hotmail.com
-//  - Skype: Zephyrus_cr
-//  - Site: http://dev.terra-gaming.com
-//
-// This file is NOT public - you are not allowed to distribute it.
-// Authorized Server List : http://dev.terra-gaming.com/index.php?/topic/72-authorized-eamod-servers/
-// eAmod is a non Free, extended version of eAthena Ragnarok Private Server.
-
 // ==============================================================================
 // BattleGround System - Rush
 // ==============================================================================
 
 // Registration NPC's
 // *********************************************************************
-
-bat_room,169,227,4	script	Registration::RushR_Guillaume	418,{
-	end;
-OnInit:
-	waitingroom "Battle Station 15 Players",16,"Rush::OnGuillaumeJoin",1;
-	end;
-OnEnterBG:
-	set $@Rush_id1, waitingroom2bg(getvariableofnpc(.Castle$,"Rush"),getvariableofnpc(.GX,"Rush"),getvariableofnpc(.GY,"Rush"),0,"Rush::OnGuillaumeQuit","");
-	end;
-}
-
-bat_room,169,204,0	script	Registration::RushR_Croix	414,{
-	end;
-OnInit:
-	waitingroom "Battle Station 15 Players",16,"Rush::OnCroixJoin",1;
-	end;
-OnEnterBG:
-	set $@Rush_id2, waitingroom2bg(getvariableofnpc(.Castle$,"Rush"),getvariableofnpc(.CX,"Rush"),getvariableofnpc(.CY,"Rush"),1,"Rush::OnCroixQuit","");
-	end;
-}
-
 // Battleground Engine
 // *********************************************************************
 
@@ -70,7 +38,7 @@ OnInit:
 
 OnGuillaumeQuit:
 OnCroixQuit:
-	setquest 8506; // Deserter
+	callfunc("bgsetwaittime","Rush",180);
 	if( $@Rush != 0 )
 		donpcevent "Rush::OnDoBalance";
 	end;
@@ -91,13 +59,13 @@ OnDoBalance:
 	set .@Croix, bg_get_data($@Rush_id2, 0);
 
 	if( .@Guillaume < .@Croix )
-		waitingroom2bg_single $@Rush_id1,.Castle$,.GX,.GY,"RushR_Guillaume";
+		waitingroom2bg_single $@Rush_id1,.Castle$,.GX,.GY,"BGAZUL";
 	else if( .@Guillaume > .@Croix )
-		waitingroom2bg_single $@Rush_id2,.Castle$,.CX,.CY,"RushR_Croix";
+		waitingroom2bg_single $@Rush_id2,.Castle$,.CX,.CY,"BGROJO";
 	else
 	{
-		set .@GuillaumeR, getwaitingroomstate(0,"RushR_Guillaume");
-		set .@CroixR, getwaitingroomstate(0,"RushR_Croix");
+		set .@GuillaumeR, getwaitingroomstate(0,"BGAZUL");
+		set .@CroixR, getwaitingroomstate(0,"BGROJO");
 
 		if( .@GuillaumeR <= .@CroixR )
 			set .@Limit, .@GuillaumeR;
@@ -110,54 +78,55 @@ OnDoBalance:
 
 		for( set .@i, 0; .@i < .@Limit; set .@i, .@i + 1 )
 		{
-			waitingroom2bg_single $@Rush_id1,.Castle$,.GX,.GY,"RushR_Guillaume";
-			waitingroom2bg_single $@Rush_id2,.Castle$,.CX,.CY,"RushR_Croix";
+			waitingroom2bg_single $@Rush_id1,.Castle$,.GX,.GY,"BGAZUL";
+			waitingroom2bg_single $@Rush_id2,.Castle$,.CX,.CY,"BGROJO";
 		}
 
 		set .@Guillaume, .@Guillaume + .@Limit;
 		set .@Croix, .@Croix + .@Limit;
-		mapannounce "bat_room","Battleground -- Rush [80-99] G: " + .@Guillaume + "/30, C: " + .@Croix + "/30 (Playing)",1,0xDDA0DD;
+		mapannounce "arena_4","Battleground -- Rush [80-99] G: " + .@Guillaume + "/30, C: " + .@Croix + "/30 (Playing)",1,0xDDA0DD;
 	}
 	end;
 
 OnReadyCheck:
-	if( $@Rush )
+	if( $@Rush  || $CURRENTBG != 2 )
 		end;
-	set .@Guillaume, getwaitingroomstate(0,"RushR_Guillaume");
-	set .@Croix, getwaitingroomstate(0,"RushR_Croix");
 
-	if( .@Guillaume < 15 || .@Croix < 15 )
+	set .@Guillaume, getwaitingroomstate(0,"BGAZUL");
+	set .@Croix, getwaitingroomstate(0,"BGROJO");
+	
+	if( .@Guillaume < ($MINBGLIMIT - 1) || .@Croix < ($MINBGLIMIT - 1) )
 	{
-		if( .@Guillaume > 10 && .@Croix > 10 && !agitcheck() && $@Rush_Flood < gettimetick(2) )
+		if( .@Guillaume > ($MINBGLIMIT - 1) && .@Croix > ($MINBGLIMIT - 1) && !agitcheck() && $@Rush_Flood < gettimetick(2) )
 		{
-			announce "Battleground -- Rush [80-99] G: " + .@Guillaume + "/15, C: " + .@Croix + "/15",0,0xDDA0DD;
+			announce "Battleground -- Rush [80-99] G: " + .@Guillaume + "/"+($MINBGLIMIT - 1)+", C: " + .@Croix + "/"+($MINBGLIMIT - 1),0,0xDDA0DD;
 			set $@Rush_Flood, gettimetick(2) + 15;
 		}
 		else
-			mapannounce "bat_room","Battleground -- Rush [80-99] G: " + .@Guillaume + "/15, C: " + .@Croix + "/15",1,0xDDA0DD;
+			mapannounce "arena_4","Battleground -- Rush [80-99] G: " + .@Guillaume + "/"+($MINBGLIMIT - 1)+", C: " + .@Croix + "/"+($MINBGLIMIT - 1),1,0xDDA0DD;
 		end;
 	}
 
 	set $@Rush, 1;
 	set .Guillaume_Score, 0;
 	set .Croix_Score, 0;
-	donpcevent "RushR_Guillaume::OnEnterBG";
-	donpcevent "RushR_Croix::OnEnterBG";
+	donpcevent "BGAZUL::OnEnterBG";
+	donpcevent "BGROJO::OnEnterBG";
 	announce "Battleground -- Rush [80-99] has started!",0,0xDDA0DD;
 	// Emperium =====================
 	switch( .Index )
 	{
 	case 0: // =========================================================================
-		bg_monster 0,.Castle$,158,174,"Emperium",2007,"Rush::OnEmperium";
+		bg_monster 0,.Castle$,158,174,"Emperium",2107,"Rush::OnEmperium";
 		break;
 	case 1: // =========================================================================
-		bg_monster 0,.Castle$,271,29,"Emperium",2007,"Rush::OnEmperium";
+		bg_monster 0,.Castle$,271,29,"Emperium",2107,"Rush::OnEmperium";
 		break;
 	case 2: // =========================================================================
-		bg_monster 0,.Castle$,28,102,"Emperium",2007,"Rush::OnEmperium";
+		bg_monster 0,.Castle$,28,102,"Emperium",2107,"Rush::OnEmperium";
 		break;
 	case 3: // =========================================================================
-		bg_monster 0,.Castle$,245,167,"Emperium",2007,"Rush::OnEmperium";
+		bg_monster 0,.Castle$,245,167,"Emperium",2107,"Rush::OnEmperium";
 		break;
 	}
 	// ======================================
@@ -222,16 +191,16 @@ OnEmperium:
 		switch( .Index )
 		{
 		case 0: // =========================================================================
-			bg_monster .Defender,.Castle$,158,174,"Emperium",2007,"Rush::OnEmperium";
+			bg_monster .Defender,.Castle$,158,174,"Emperium",2107,"Rush::OnEmperium";
 			break;
 		case 1: // =========================================================================
-			bg_monster .Defender,.Castle$,271,29,"Emperium",2007,"Rush::OnEmperium";
+			bg_monster .Defender,.Castle$,271,29,"Emperium",2107,"Rush::OnEmperium";
 			break;
 		case 2: // =========================================================================
-			bg_monster .Defender,.Castle$,28,102,"Emperium",2007,"Rush::OnEmperium";
+			bg_monster .Defender,.Castle$,28,102,"Emperium",2107,"Rush::OnEmperium";
 			break;
 		case 3: // =========================================================================
-			bg_monster .Defender,.Castle$,245,167,"Emperium",2007,"Rush::OnEmperium";
+			bg_monster .Defender,.Castle$,245,167,"Emperium",2107,"Rush::OnEmperium";
 			break;
 		}
 		// ======================================
@@ -279,27 +248,20 @@ OnMatchEnd:
 	stopnpctimer;
 	stopnpctimer "Rush_Respawn";
 	set $@Rush, 2; // BG Status
+	
+	//[Oboro] Rotacion de BG
+	ChangeBG();
+	
 	killmonster .Castle$,"Rush::OnEmperium";
 	bg_updatescore .Castle$,.Guillaume_Score,.Croix_Score;
+	
 	// =======================================================
 	// Team Rewards
 	// =======================================================
-	set .@Reward, 15 + (.Guillaume_Score * 2);
-	if( .Guillaume_Score > .Croix_Score )
-		set .@Won,0;
-	else
-		set .@Won,2;
-
-	bg_reward $@Rush_id1,7773,.@Reward,0,8510,"BG_RUSH",1,7,.@Won;
-	// =======================================================
-	set .@Reward, 15 + (.Croix_Score * 2);
-	if( .Croix_Score > .Guillaume_Score )
-		set .@Won,0;
-	else
-		set .@Won,2;
-
-	bg_reward $@Rush_id2,7773,.@Reward,0,8510,"BG_RUSH",1,7,.@Won;
-	// =======================================================
+	
+	bg_item($@Rush_id1, (.Guillaume_Score > .Croix_Score ? 1 : 0 ));
+	bg_item($@Rush_id2, (.Guillaume_Score < .Croix_Score ? 0 : 1));
+	
 	mapannounce .Castle$,"Battle of Rush will start 15 in seconds!",1,0xDDA0DD;
 	sleep 2000;
 	bg_destroy $@Rush_id1;
@@ -411,6 +373,8 @@ rush_cas01,198,230,6	script	Therapist in battle#rh1	95,{
 	mes "You can be free from pain.";
 	specialeffect2 312;
 	percentheal 100,100;
+	sc_start 32,  250000, 10;  // Increase Agi
+	sc_start 30,  250000, 10;  // Blessing
 	repairall;
 	close2;
 	openstorage;
@@ -423,6 +387,8 @@ rush_cas01,198,226,6	script	Therapist in battle#rh2	95,{
 	mes "You can be free from pain.";
 	specialeffect2 312;
 	percentheal 100,100;
+	sc_start 32,  250000, 10;  // Increase Agi
+	sc_start 30,  250000, 10;  // Blessing
 	repairall;
 	close2;
 	openstorage;
@@ -435,6 +401,8 @@ rush_cas02,142,50,6	script	Therapist in battle#rh3	95,{
 	mes "You can be free from pain.";
 	specialeffect2 312;
 	percentheal 100,100;
+	sc_start 32,  250000, 10;  // Increase Agi
+	sc_start 30,  250000, 10;  // Blessing
 	repairall;
 	close2;
 	openstorage;
@@ -447,6 +415,8 @@ rush_cas02,142,46,6	script	Therapist in battle#rh4	95,{
 	mes "You can be free from pain.";
 	specialeffect2 312;
 	percentheal 100,100;
+	sc_start 32,  250000, 10;  // Increase Agi
+	sc_start 30,  250000, 10;  // Blessing
 	repairall;
 	close2;
 	openstorage;
@@ -459,6 +429,8 @@ rush_cas03,60,17,4	script	Therapist in battle#rh5	95,{
 	mes "You can be free from pain.";
 	specialeffect2 312;
 	percentheal 100,100;
+	sc_start 32,  250000, 10;  // Increase Agi
+	sc_start 30,  250000, 10;  // Blessing
 	repairall;
 	close2;
 	openstorage;
@@ -471,6 +443,8 @@ rush_cas03,64,17,4	script	Therapist in battle#rh6	95,{
 	mes "You can be free from pain.";
 	specialeffect2 312;
 	percentheal 100,100;
+	sc_start 32,  250000, 10;  // Increase Agi
+	sc_start 30,  250000, 10;  // Blessing
 	repairall;
 	close2;
 	openstorage;
@@ -483,6 +457,8 @@ rush_cas04,266,292,6	script	Therapist in battle#rh7	95,{
 	mes "You can be free from pain.";
 	specialeffect2 312;
 	percentheal 100,100;
+	sc_start 32,  250000, 10;  // Increase Agi
+	sc_start 30,  250000, 10;  // Blessing
 	repairall;
 	close2;
 	openstorage;
@@ -495,6 +471,8 @@ rush_cas04,266,288,6	script	Therapist in battle#rh8	95,{
 	mes "You can be free from pain.";
 	specialeffect2 312;
 	percentheal 100,100;
+	sc_start 32,  250000, 10;  // Increase Agi
+	sc_start 30,  250000, 10;  // Blessing
 	repairall;
 	close2;
 	openstorage;

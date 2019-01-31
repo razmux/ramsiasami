@@ -51,6 +51,7 @@
 #include "achievement.h"
 #include "faction.h"
 #include "elemental.h"
+#include "oboro.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -371,6 +372,8 @@ enum {
 	MF_BLOCKED,
 	MF_NOSTORAGE,
 	MF_NOGUILDSTORAGE,
+	MF_NODISCOUNT, // [ Oboro]
+	MF_GUILDMIN, // [ Oboro ]
 };
 
 const char* script_op2name(int op)
@@ -7431,7 +7434,7 @@ BUILDIN_FUNC(itembound)
 		return 1;
 	}
 
-	if( itemdb_isstackable(nameid) || itemdb_type(nameid) == IT_PETEGG )
+	if(itemdb_type(nameid) == IT_PETEGG )
 	{
 		ShowError("buildin_itembound: invalid item type. Bound only work for non stackeable items (Item %d).", nameid);
 		return 1;
@@ -7507,7 +7510,7 @@ BUILDIN_FUNC(itembound2)
 	c3 = (short)script_getnum(st,9);
 	c4 = (short)script_getnum(st,10);
 	
-	if( nameid < 0 || (item_data = itemdb_exists(nameid)) == NULL || itemdb_isstackable2(item_data) )
+	if( nameid < 0 || (item_data = itemdb_exists(nameid)) == NULL) 
 		return 0;
 
 	memset(&item_tmp,0,sizeof(item_tmp));
@@ -8389,17 +8392,40 @@ BUILDIN_FUNC(getpartyleader)
 /*==========================================
  * Return the name of the @guild_id
  * null if not found
+ * - [Oboro] Bug Fix (no muestra null)
  *------------------------------------------*/
 BUILDIN_FUNC(getguildname)
 {
 	int guild_id;
 	struct guild* g;
+	StringBuf buf;
+	char* data;
+	char Fix_Guild_Name[NAME_LENGTH];
 
 	guild_id = script_getnum(st,2);
 	if( ( g = guild_search(guild_id) ) != NULL )
 		script_pushstrcopy(st,g->name);
 	else 
-		script_pushconststr(st,"null");
+	{
+		StringBuf_Init(&buf);
+		StringBuf_Printf(&buf, "SELECT `name` FROM `guild` WHERE `guild_id` = '%d'",guild_id);
+		if( SQL_ERROR == Sql_Query(mmysql_handle, StringBuf_Value(&buf)) ) 
+		{
+			Sql_ShowDebug(mmysql_handle);
+			ShowWarning("Error de db en getguildname script.c.\n");
+		}
+		else if ( Sql_NumRows(mmysql_handle) == 0 ) 
+			script_pushconststr(st,"No existe");
+		else 
+		{
+			while( SQL_SUCCESS == Sql_NextRow(mmysql_handle) ) 
+			{
+				Sql_GetData(mmysql_handle, 0, &data, NULL); safestrncpy(Fix_Guild_Name,data,sizeof(Fix_Guild_Name));
+				script_pushstrcopy(st,Fix_Guild_Name);
+				Sql_FreeResult(mmysql_handle);
+			}
+		}	
+	}
 	return SCRIPT_CMD_SUCCESS;
 }
 
@@ -8982,44 +9008,72 @@ BUILDIN_FUNC(costume)
 }
 
 /*==========================================
- * êArmor Enchanting
+ *  Armor Enchanting
+ * [Oboro] Re-Coded para Oboro Emulator
  *------------------------------------------*/
 BUILDIN_FUNC(successenchant)
 {
-	int i = -1, j, pos, enchant, ep;
+	int i = -1, pos, enchant, item_id, cont, flag = 0;
+	char display[CHAT_SIZE_MAX];
+	struct item_data *item_enchant;
+	struct item_data *item_data;
+	struct item item_tmp;
 	TBL_PC *sd;
 
-	pos = script_getnum(st,2); // Equip Slot
+	item_id = script_getnum(st,2); // item_id
 	enchant = script_getnum(st,3); // Equip Enchant
-	sd = script_rid2sd(st);
-	if( sd == NULL || !itemdb_isenchant(enchant) )
-		return 0;
+	pos		= script_getnum(st,4); // item_equip
+	sd		= script_rid2sd(st);
+
+	item_enchant = itemdb_exists(enchant);
+
+	if( sd == NULL || item_enchant == NULL || !itemdb_isenchant(enchant)  )
+		return SCRIPT_CMD_FAILURE;
+
 	if (equip_index_check(pos))
 		i = pc_checkequip(sd, equip_bitmask[pos]);
-	if (i < 0)
-		return 0;
-	if (!sd->inventory_data[i] || sd->inventory_data[i]->slot >= MAX_SLOTS)
-		return 0; // Cannot enchant an item with 4 slots. Enchant uses last slot.
 
-	ep = sd->status.inventory[i].equip;
-	log_pick_pc(sd, LOG_TYPE_SCRIPT, -1, &sd->status.inventory[i]);
+	if( i < 0 )
+		return SCRIPT_CMD_FAILURE;
+
+	if( !sd->inventory_data[i] || sd->inventory_data[i]->slot >= MAX_SLOTS )
+		return SCRIPT_CMD_FAILURE;
+
+	pc_unequipitem(sd, i, 2);
+
+	// [Oboro] Guardamos en item_tmp antes de borrar el item
+	memset(&item_tmp, 0, sizeof(item_tmp));
+	item_tmp.nameid		= sd->status.inventory[i].nameid;
+	item_tmp.identify	= sd->status.inventory[i].identify;
+	item_tmp.refine		= sd->status.inventory[i].refine;
+	item_tmp.attribute	= sd->status.inventory[i].attribute;
+	item_tmp.card[0]	= sd->status.inventory[i].card[0];
+	item_tmp.card[1]	= sd->status.inventory[i].card[1];
+	item_tmp.card[2]	= sd->status.inventory[i].card[2];
+	item_tmp.card[3]	= sd->status.inventory[i].card[3];
+	item_tmp.bound		= sd->status.inventory[i].bound;
+
+	// [Oboro] Procedemos a asignar el enchant
+	item_tmp.card[MAX_SLOTS - 1] = enchant;
+
+	pc_delitem(sd, i, 1, 0, 0, LOG_TYPE_COMMAND);
+
+	if ((flag = pc_additem(sd, &item_tmp, 1, LOG_TYPE_COMMAND))) 
+	{
+		clif_additem(sd, 0, 0, flag);
+		clif_misceffect(&sd->bl,3);
+	}
+
+	if ( (item_data = itemdb_exists(item_id)) != NULL ) 
+	{
+		ARR_FIND( 0, MAX_INVENTORY, cont, sd->status.inventory[cont].nameid == item_id);
+		if( cont < MAX_INVENTORY )
+			pc_equipitem(sd, cont,item_data->equip);
+	}
 	
-	// By Official Info: Item will lose cards, refine and previus enchants.
-	for( j = 0; j < MAX_SLOTS; j++ )
-		sd->status.inventory[i].card[j] = 0;
-	sd->status.inventory[i].refine = 0;
-	// --------------------------------------------------------------------
-
-	pc_unequipitem(sd,i,2);
-	clif_delitem(sd,i,1,3);
-	sd->status.inventory[i].card[MAX_SLOTS - 1] = enchant;
-	log_pick_pc(sd, LOG_TYPE_SCRIPT, 1, &sd->status.inventory[i]);
-
-	clif_additem(sd,i,1,0);
-	pc_equipitem(sd,i,ep);
-	clif_misceffect(&sd->bl,3);
-
-	return 0;
+	sprintf(display,"Armadura/Hat encantado con: %s", item_enchant->jname);
+	clif_displaymessage(sd->fd,display);
+	return SCRIPT_CMD_SUCCESS;
 }
 
 BUILDIN_FUNC(failedenchant)
@@ -9064,7 +9118,6 @@ BUILDIN_FUNC(successrefitem) {
 	if (equip_index_check(pos))
 		i = pc_checkequip(sd,equip_bitmask[pos]);
 	if (i >= 0) {
-		short announce_refine[] = { 7, 9, 8, 7, 5 };
 		unsigned int ep = sd->status.inventory[i].equip;
 
 		//Logs items, got from (N)PC scripts [Lupus]
@@ -9117,7 +9170,8 @@ BUILDIN_FUNC(successrefitem) {
  * Show a failed Refine +1 attempt
  * failedrefitem <equipment slot>{,<char_id>}
  *------------------------------------------*/
-BUILDIN_FUNC(failedrefitem) {
+BUILDIN_FUNC(failedrefitem) 
+{
 	short i = -1;
 	int pos;
 	TBL_PC *sd;
@@ -9161,7 +9215,6 @@ BUILDIN_FUNC(failedrefitemR) // by jakeRed
 	if (equip_index_check(pos))
 		i = pc_checkequip(sd, equip_bitmask[pos]);
 	if (i >= 0) {
-		short announce_refine[] = { 7, 9, 8, 7, 5 };
 		ep = sd->status.inventory[i].equip;
 
 		//Logs items, got from (N)PC scripts [Lupus]
@@ -12631,6 +12684,8 @@ BUILDIN_FUNC(getmapflag)
 			case MF_BLOCKED:			script_pushint(st,map[m].flag.blocked); break;
 			case MF_NOSTORAGE:			script_pushint(st,map[m].flag.nostorage); break;
 			case MF_NOGUILDSTORAGE:		script_pushint(st,map[m].flag.noguildstorage); break;
+			case MF_NODISCOUNT:			script_pushint(st,map[m].flag.nodiscount); break; // [ Oboro ]
+			case MF_GUILDMIN:			script_pushint(st,map[m].flag.guild_min); break; // [ Oboro ]
 		}
 	}
 	return SCRIPT_CMD_SUCCESS;
@@ -12758,6 +12813,8 @@ BUILDIN_FUNC(setmapflag)
 			case MF_BLOCKED:       map[m].flag.blocked=1; break;
 			case MF_NOSTORAGE:			map[m].flag.nostorage=1; break;
 			case MF_NOGUILDSTORAGE:		map[m].flag.noguildstorage=1; break;
+			case MF_NODISCOUNT:			map[m].flag.nodiscount=1; break; // [Oboro]
+			case MF_GUILDMIN:			map[m].flag.guild_min=1; break; // [Oboro]
 		}
 	}
 	return SCRIPT_CMD_SUCCESS;
@@ -12868,6 +12925,8 @@ BUILDIN_FUNC(removemapflag)
 			case MF_BLOCKED:       map[m].flag.blocked=0; break;
 			case MF_NOSTORAGE:			map[m].flag.nostorage=0; break;
 			case MF_NOGUILDSTORAGE:		map[m].flag.noguildstorage=0; break;
+			case MF_NODISCOUNT:			map[m].flag.nodiscount=0; break; // [Oboro]
+			case MF_GUILDMIN:			map[m].flag.guild_min=0; break; // [Oboro]
 		}
 	}
 	return SCRIPT_CMD_SUCCESS;
@@ -13331,7 +13390,8 @@ BUILDIN_FUNC(successremovecards) {
 	if(itemdb_isspecial(sd->status.inventory[i].card[0]))
 		return SCRIPT_CMD_SUCCESS;
 
-	for( c = sd->inventory_data[i]->slot - 1; c >= 0; --c ) {
+	for( c = sd->inventory_data[i]->slot - 1; c >= 0; --c ) 
+	{
 		if( sd->status.inventory[i].card[c] && itemdb_type(sd->status.inventory[i].card[c]) == IT_CARD ) {// extract this card from the item
 			unsigned char flag = 0;
 			struct item item_tmp;
@@ -13347,7 +13407,7 @@ BUILDIN_FUNC(successremovecards) {
 		}
 	}
 
-	if(cardflag == 1) {//if card was remove remplace item with no card
+	if(cardflag == 1) { //if card was remove remplace item with no card
 		unsigned char flag = 0, j;
 		struct item item_tmp;
 		memset(&item_tmp,0,sizeof(item_tmp));
@@ -17081,7 +17141,7 @@ BUILDIN_FUNC(callshop)
 	if (script_hasdata(st,3))
 		flag = script_getnum(st,3);
 	nd = npc_name2id(shopname);
-	if( !nd || nd->bl.type != BL_NPC || (nd->subtype != NPCTYPE_SHOP && nd->subtype != NPCTYPE_CASHSHOP && nd->subtype != NPCTYPE_ITEMSHOP && nd->subtype != NPCTYPE_POINTSHOP && nd->subtype != NPCTYPE_MARKETSHOP) ) {
+	if( !nd || nd->bl.type != BL_NPC || (nd->subtype != NPCTYPE_SHOP && nd->subtype != NPCTYPE_CASHSHOP && nd->subtype != NPCTYPE_ITEMSHOP && nd->subtype != NPCTYPE_COSTUMESHOP && nd->subtype != NPCTYPE_POINTSHOP && nd->subtype != NPCTYPE_MARKETSHOP) ) {
 		ShowError("buildin_callshop: Shop [%s] not found (or NPC is not shop type)\n", shopname);
 		script_pushint(st,0);
 		return SCRIPT_CMD_FAILURE;
@@ -21086,48 +21146,6 @@ BUILDIN_FUNC(bg_rankpoints_area)
 	return SCRIPT_CMD_SUCCESS;
 }
 
-BUILDIN_FUNC(bg_getitem)
-{
-	int bg_id, nameid, amount;
-
-	bg_id = script_getnum(st,2);
-	nameid = script_getnum(st,3);
-	amount = script_getnum(st,4);
-
-	bg_team_getitem(bg_id, nameid, amount);
-	return 0;
-}
-
-BUILDIN_FUNC(bg_getkafrapoints)
-{
-	int bg_id, amount;
-
-	bg_id = script_getnum(st,2);
-	amount = script_getnum(st,3);
-
-	bg_team_get_kafrapoints(bg_id, amount);
-	return 0;
-}
-
-BUILDIN_FUNC(bg_reward)
-{
-	int bg_id, nameid, amount, kafrapoints, quest_id, add_value, bg_arena, bg_result;
-	const char *var;
-
-	bg_id = script_getnum(st,2);
-	nameid = script_getnum(st,3);
-	amount = script_getnum(st,4);
-	kafrapoints = script_getnum(st,5);
-	quest_id = script_getnum(st,6);
-	var = script_getstr(st,7);
-	add_value = script_getnum(st,8);
-	bg_arena = script_getnum(st,9);
-	bg_result = script_getnum(st,10);
-
-	bg_team_rewards(bg_id, nameid, amount, kafrapoints, quest_id, var, add_value, bg_arena, bg_result);
-	return 0;
-}
-
 /*==========================================
  * Instancing System
  *------------------------------------------*/
@@ -24016,32 +24034,32 @@ BUILDIN_FUNC(pvpeventstart)
 
 	memset(pvpevent_fame_list, 0, sizeof(pvpevent_fame_list));
 	pvpevent_flag = 1;
-	return 0;
+	return SCRIPT_CMD_SUCCESS;
 }
 
 BUILDIN_FUNC(pvpeventstop)
 {
 	memset(pvpevent_fame_list, 0, sizeof(pvpevent_fame_list));
 	pvpevent_flag = 0;
-	return 0;
+	return SCRIPT_CMD_SUCCESS;
 }
 
 BUILDIN_FUNC(pvpeventcheck)
 {
 	script_pushint(st,pvpevent_flag);
-	return 0;
+	return SCRIPT_CMD_SUCCESS;
 }
 
 BUILDIN_FUNC(pvpevent_addpoints)
 {
 	struct map_session_data *sd = script_rid2sd(st);
 	int value = script_getnum(st,2);
-	if( sd == NULL ) return 0;
+	if( sd == NULL ) return SCRIPT_CMD_SUCCESS;
 
 	sd->pvpevent_fame += value;
 	pc_pvpevent_addfame(sd, true);
 
-	return 0;
+	return SCRIPT_CMD_SUCCESS;
 }
 /*==========================================
  * Ranking Reset
@@ -24052,7 +24070,7 @@ BUILDIN_FUNC(rankreset)
 	if( type >= 0 && type <= 2 )
 		pc_ranking_reset(type,true);
 
-	return 0;
+	return SCRIPT_CMD_SUCCESS;
 }
 /*==========================================
  * Item Destroy
@@ -24062,7 +24080,7 @@ BUILDIN_FUNC(item_remove4all)
 	int nameid = script_getnum(st,2);
 	pc_item_remove4all(nameid,true);
 
-	return 0;
+	return SCRIPT_CMD_SUCCESS;
 }
 /*==========================================
  * Guild Ranking - Zeny Investments
@@ -24075,7 +24093,7 @@ BUILDIN_FUNC(guild_addzenyeco)
 
 	int value = script_getnum(st,2);
 	if( sd == NULL || sd->status.guild_id == 0 || (g = guild_search(sd->status.guild_id)) == NULL || (gc = guild_mapindex2gc(map[sd->bl.m].index)) == NULL )
-		return 0;
+		return SCRIPT_CMD_SUCCESS;
 
 	add2limit(g->castle[gc->castle_id].zeny_eco, value, UINT_MAX);
 	g->castle[gc->castle_id].changed = true;
@@ -24084,7 +24102,7 @@ BUILDIN_FUNC(guild_addzenyeco)
 		intif_guild_save_score(g->guild_id, gc->castle_id, &g->castle[gc->castle_id]);
 		g->castle[gc->castle_id].changed = false;
 	}
-	return 0;
+	return SCRIPT_CMD_SUCCESS;
 }
 
 BUILDIN_FUNC(guild_addzenydef)
@@ -24095,7 +24113,7 @@ BUILDIN_FUNC(guild_addzenydef)
 
 	int value = script_getnum(st,2);
 	if( sd == NULL || sd->status.guild_id == 0 || (g = guild_search(sd->status.guild_id)) == NULL || (gc = guild_mapindex2gc(map[sd->bl.m].index)) == NULL )
-		return 0;
+		return SCRIPT_CMD_SUCCESS;
 
 	add2limit(g->castle[gc->castle_id].zeny_def, value, UINT_MAX);
 	g->castle[gc->castle_id].changed = true;
@@ -24104,7 +24122,7 @@ BUILDIN_FUNC(guild_addzenydef)
 		intif_guild_save_score(g->guild_id, gc->castle_id, &g->castle[gc->castle_id]);
 		g->castle[gc->castle_id].changed = false;
 	}
-	return 0;
+	return SCRIPT_CMD_SUCCESS;
 }
 
 /*==========================================
@@ -24118,7 +24136,7 @@ BUILDIN_FUNC(getpvpmode)
 		result = 1;
 
 	script_pushint(st,result);
-	return 0;
+	return SCRIPT_CMD_SUCCESS;
 }
 
 /*==========================================
@@ -24129,20 +24147,20 @@ BUILDIN_FUNC(setsecurity)
 	struct map_session_data *sd = script_rid2sd(st);
 	int value = script_getnum(st,2);
 	if( sd == NULL )
-		return 0;
+		return SCRIPT_CMD_SUCCESS;
 
 	sd->state.secure_items = (value)?1:0;
-	return 0;
+	return SCRIPT_CMD_SUCCESS;
 }
 
 BUILDIN_FUNC(getsecurity)
 {
 	struct map_session_data *sd = script_rid2sd(st);
 	if( sd == NULL )
-		return 0;
+		return SCRIPT_CMD_SUCCESS;
 
 	script_pushint(st,sd->state.secure_items);
-	return 0;
+	return SCRIPT_CMD_SUCCESS;
 }
 
 // Graveyard System
@@ -24154,7 +24172,7 @@ BUILDIN_FUNC(graveyard_info)
 	struct npc_data* nd = map_id2nd(st->oid);
 	int type = script_getnum(st,2);
 
-	if( !nd ) return 0;
+	if( !nd ) return SCRIPT_CMD_SUCCESS;
 
 	switch( type )
 	{
@@ -24176,7 +24194,7 @@ BUILDIN_FUNC(graveyard_info)
 	else
 		script_pushconststr(st,"");
 
-	return 0;
+	return SCRIPT_CMD_SUCCESS;
 }
 
 // Achievement System
@@ -24189,7 +24207,7 @@ BUILDIN_FUNC(achieve)
 	if( (ad = achievement_search(id)) != NULL )
 		achievement_complete(sd,ad);
 
-	return 0;
+	return SCRIPT_CMD_SUCCESS;
 }
 
 BUILDIN_FUNC(achievement_info)
@@ -24203,7 +24221,7 @@ BUILDIN_FUNC(achievement_info)
 	if( (ad = achievement_search(id)) == NULL )
 	{
 		ShowError("buildin:achievement_info: No achievement found with id %d.\n",id);
-		return 0;
+		return SCRIPT_CMD_SUCCESS;
 	}
 
 	switch( flag )
@@ -24215,7 +24233,7 @@ BUILDIN_FUNC(achievement_info)
 			if( !sd )
 			{
 				ShowError("buildin:achievement_info: No player attached.\n");
-				return 0;
+				return SCRIPT_CMD_SUCCESS;
 			}
 			index = achievement_index(sd,id);
 			script_pushint(st,(index >= 0 && sd->achievement[index].completed) ? 1 : 0);
@@ -24250,7 +24268,7 @@ BUILDIN_FUNC(achievement_info)
 		break;
 	}
 
-	return 0;
+	return SCRIPT_CMD_SUCCESS;
 }
 
 BUILDIN_FUNC(achieve_progress)
@@ -24263,13 +24281,13 @@ BUILDIN_FUNC(achieve_progress)
 	if( !sd )
 	{
 		ShowError("buildin:achieve_progress: Non attached character to script.\n");
-		return 0;
+		return SCRIPT_CMD_SUCCESS;
 	}
 
 	if( (ad = achievement_search(id)) == NULL )
 	{
 		ShowError("buildin:achieve_progress: No achievement found with id %d.\n",id);
-		return 0;
+		return SCRIPT_CMD_SUCCESS;
 	}
 
 	i = achievement_index(sd,id);
@@ -24283,7 +24301,7 @@ BUILDIN_FUNC(achieve_progress)
 	}
 
 	script_pushint(st,ad->objectives);
-	return 0;
+	return SCRIPT_CMD_SUCCESS;
 }
 
 // Faction and Language System
@@ -24303,7 +24321,7 @@ BUILDIN_FUNC(setfaction)
 		sd->lang_id = fd->lang_id;
 	}
 
-	return 0;
+	return SCRIPT_CMD_SUCCESS;
 }
 
 BUILDIN_FUNC(language)
@@ -24320,7 +24338,7 @@ BUILDIN_FUNC(language)
 		clif_broadcast2(&sd->bl,output,strlen(output) + 1,0xFFA500,0x190,20,0,0,SELF);
 	}
 
-	return 0;
+	return SCRIPT_CMD_SUCCESS;
 }
 
 BUILDIN_FUNC(learnlang)
@@ -24338,7 +24356,7 @@ BUILDIN_FUNC(learnlang)
 		clif_broadcast2(&sd->bl,output,strlen(output) + 1,0x00FF00,0x190,20,0,0,SELF);
 	}
 
-	return 0;
+	return SCRIPT_CMD_SUCCESS;
 }
 
 BUILDIN_FUNC(unlearnlang)
@@ -24356,7 +24374,7 @@ BUILDIN_FUNC(unlearnlang)
 		clif_broadcast2(&sd->bl,output,strlen(output) + 1,0xC0C0C0,0x190,20,0,0,SELF);
 	}
 
-	return 0;
+	return SCRIPT_CMD_SUCCESS;
 }
 
 #include "../custom/script.inc"
@@ -24407,9 +24425,312 @@ BUILDIN_FUNC(preg_match) {
 #endif
 }
 
+/*==========================================
+ * iSaaChjK Simple funcion mes que presenta 
+ * el boton close de una vez.
+ *------------------------------------------*/
+
+BUILDIN_FUNC(mclose) 
+{
+	TBL_PC* sd = script_rid2sd(st);
+	if( sd == NULL )
+		return SCRIPT_CMD_SUCCESS;
+
+	clif_scriptmes(sd, st->oid, script_getstr(st, 2));
+	st->state = END;
+	clif_scriptclose(sd, st->oid);
+	return SCRIPT_CMD_SUCCESS;
+}
+
+/*==========================================
+ * iSaaChjK Simple funcion para saber si una
+ * carta se puede equipar a un item o no.
+ * 0 = si se puede
+ * 1 = no se puede
+ * 2 = ERROR
+ * CardIsEquipable(<itemID>,<CardID>);
+ *------------------------------------------*/
+BUILDIN_FUNC(CardIsEquipable)
+{
+	TBL_PC *sd = script_rid2sd(st);
+
+	if (sd == NULL) 
+	{ 
+		script_pushint(st,2); 
+		return SCRIPT_CMD_SUCCESS; 
+	}
+
+	script_pushint(st, Oboro_CardIsEquipable(sd, (int)script_getnum(st, 2), (int)script_getnum(st, 2)));
+	return SCRIPT_CMD_SUCCESS;
+}
+
+/*==========================================
+ *
+ * devuelve el numero de slots que tiene...
+ * isaachjk ItemHasSlot(<itemid>);
+ *
+*------------------------------------------*/
+BUILDIN_FUNC(ItemHasSlot) 
+{
+	int ItemID = script_getnum(st, 2);
+	struct item_data *id = itemdb_exists(ItemID);
+	TBL_PC *sd = script_rid2sd(st);
+
+	if (sd == NULL) return SCRIPT_CMD_SUCCESS;
+	script_pushint(st,id->slot);
+	return SCRIPT_CMD_SUCCESS;
+}
+
+/*==========================================
+ *
+ * [Oboro] AdaptaciÛn para Oboro Emulator
+ * devuelve el numero de slots que tiene...
+ *
+*------------------------------------------*/
+BUILDIN_FUNC(title) 
+{
+	char *NPC_NAME = "^77B727 LegendRO ^000000";
+	char NPC[CHAT_SIZE_MAX];
+	TBL_PC* sd = script_rid2sd(st);
+	if( sd == NULL )
+		return SCRIPT_CMD_SUCCESS;
+	if ( script_hasdata(st,2) )
+		sprintf(NPC,"^77B727 %s ^000000",script_getstr(st,2));
+	else
+		sprintf(NPC,"^77B727 %s ^000000",NPC_NAME);
+	
+	clif_scriptmes(sd, st->oid, NPC);
+	clif_scriptmes(sd, st->oid, " ");
+	return SCRIPT_CMD_SUCCESS;
+}
+
+/*==========================================
+ *
+ * [Oboro] AdaptaciÛn para Oboro Emulator
+ * Da un item a todo el server
+ * getitem_map <item id>,<amount>,"<mapname>"{,<type>,<ID for Type>};
+ * type: 0=everyone, 1=party, 2=guild, 3=bg
+*------------------------------------------*/
+BUILDIN_FUNC(getitem_map)
+{
+	struct item it;
+	struct guild *g = NULL;
+	struct party_data *p = NULL;
+	struct battleground_data *bg = NULL;
+	struct script_data *data;
+
+	int m,i,get_count,nameid,amount,flag=0,type=0,type_id=0;
+	const char *mapname;
+
+	data = script_getdata(st,2);
+	get_val(st,data);
+	if( data_isstring(data) )
+	{
+		const char *name = conv_str(st,data);
+		struct item_data *item_data = itemdb_searchname(name);
+		if( item_data )
+			nameid = item_data->nameid;
+		else
+			nameid = UNKNOWN_ITEM_ID;
+	}
+	else
+		nameid = conv_num(st,data);
+
+	if( (amount = script_getnum(st,3)) <= 0 )
+		return SCRIPT_CMD_SUCCESS;
+
+	mapname = script_getstr(st,4);
+	if( (m = map_mapname2mapid(mapname)) < 0 )
+		return SCRIPT_CMD_SUCCESS;
+
+	if( script_hasdata(st,5) )
+	{
+		type    = script_getnum(st,5);
+		type_id = script_getnum(st,6);
+	}
+
+	if(nameid < 0) 
+		return SCRIPT_CMD_FAILURE;
+	
+	if( nameid <= 0 || !itemdb_exists(nameid) ){
+		ShowError("buildin_getitem_map: Nonexistant item %d requested.\n", nameid);
+		return 1; //No item created.
+	}
+
+	memset(&it,0,sizeof(it));
+	it.nameid = nameid;
+	if(!flag)
+		it.identify = 1;
+	else
+		it.identify = itemdb_isidentified(nameid);
+
+	if (!itemdb_isstackable(nameid))
+		get_count = 1;
+	else
+		get_count = amount;
+
+	switch(type)
+	{
+		case 1:
+			if( (p = party_search(type_id)) != NULL )
+			{
+				for( i=0; i < MAX_PARTY; i++ )
+					if( p->data[i].sd && m == p->data[i].sd->bl.m )
+						pc_getitem_map(p->data[i].sd,it,amount,get_count,LOG_TYPE_SCRIPT);
+			}
+			break;
+		case 2:
+			if( (g = guild_search(type_id)) != NULL )
+			{
+				for( i=0; i < g->max_member; i++ )
+				if( g->member[i].sd && m == g->member[i].sd->bl.m )
+						pc_getitem_map(g->member[i].sd,it,amount,get_count,LOG_TYPE_SCRIPT);
+			}
+			break;
+		case 3:
+			if( (bg = bg_team_search(type_id)) != NULL )
+			{
+				for( i=0; i < MAX_BG_MEMBERS; i++ )
+					if( bg->members[i].sd && m == bg->members[i].sd->bl.m )
+						pc_getitem_map(bg->members[i].sd,it,amount,get_count,LOG_TYPE_SCRIPT);
+			}
+			break;
+		default:
+			map_foreachinmap(oboro_getitem_map_sub,m,BL_PC,it,amount,get_count);
+			break;
+	}
+	return SCRIPT_CMD_SUCCESS;
+}
+
+/**
+ * mapeventwarp("actual map", "to map",<x>,<y>,<var_name_check>,<value_winner>,<item_id>,<cantidad>);
+ * [Oboro] Isaac MVP vs MVP
+ **/
+BUILDIN_FUNC(mapeventwarp)
+{
+	int x,y,m,var_value, item_id, cantidad=0;
+	const char *str, *mapname, *var_winner;
+	unsigned int index;
+	mapname = script_getstr(st,2);
+	str = script_getstr(st,3);
+	x = script_getnum(st,4);
+	y = script_getnum(st,5);
+	var_winner = script_getstr(st,6);
+	var_value = script_getnum(st,7);
+	item_id = script_getnum(st,8);
+	cantidad = script_getnum(st,9);
+
+	if( ( m = map_mapname2mapid(mapname)) < 0 )
+		return SCRIPT_CMD_SUCCESS;
+
+	if( !(index = mapindex_name2id(str)) )
+		return SCRIPT_CMD_SUCCESS;
+
+	map_foreachinmap(oboro_map_event_warp, m, BL_PC, var_winner, var_value, item_id, cantidad);
+	map_foreachinmap(buildin_areawarp_sub,m,BL_PC,index,x,y,0,0);
+	return SCRIPT_CMD_SUCCESS;
+}
+
+/**
+ * ChangeBG();
+ * [Oboro] Isaac
+ * Update for change rond
+ * By: DarbladErxX
+ **/
+BUILDIN_FUNC(ChangeBG)
+{
+	struct npc_data *nd, *nd2;
+	int next = 0;
+	char BG_Var[12];
+
+	next = mapreg_readreg(add_str("$CURRENTPOCBG"));
+	if (next > MAX_BG_ARRAY)
+		next = 1;
+	else
+		next++;
+
+	sprintf(BG_Var,"$NEXTBG_%d", next);
+	if (!mapreg_readreg(add_str(BG_Var)) || mapreg_readreg(add_str(BG_Var)) == 0)
+		next = 1;
+
+	sprintf(BG_Var,"$NEXTBG_%d", next);
+
+	mapreg_setreg(add_str("$CURRENTPOCBG"), next);
+	mapreg_setreg(add_str("$CURRENTBG"), (mapreg_readreg(add_str(BG_Var)) ? mapreg_readreg(add_str(BG_Var)) : 1));
+
+	//delwaitingroom
+	nd = npc_name2id("BGAZUL");
+	nd2 = npc_name2id("BGROJO");
+
+	if(nd != NULL && nd2 != NULL)
+	{
+		chat_deletenpcchat(nd);
+		chat_deletenpcchat(nd2);
+		npc_event_do("BGAZUL::OnUpdateBG");
+		npc_event_do("BGROJO::OnUpdateBG");
+		return 0;
+	}
+}
+
+/**
+ * bg_item(<bg_id>, <ganador/perdedor>);
+ * Isaac
+ **/
+BUILDIN_FUNC(bg_item)
+{
+	int bg_id, winlost;
+	bg_id = script_getnum(st,2);
+	winlost = script_getnum(st,3);
+	bg_team_getitem(bg_id, winlost);
+	return 0;
+}
+
+BUILDIN_FUNC(get_unique_id)
+{
+	struct map_session_data* sd = script_rid2sd(st);
+
+	if (sd == NULL)
+	{
+		script_pushint(st, 0);
+		return SCRIPT_CMD_FAILURE;
+	}
+
+	script_pushint(st, session[sd->fd]->gepard_info.unique_id);
+
+	return SCRIPT_CMD_SUCCESS;
+}
+
+
+// arg must follow the pattern: (v|s|i|r|l)*\?*\*?
+// 'v' - value (either string or int or reference)
+// 's' - string
+// 'i' - int
+// 'r' - reference (of a variable)
+// 'l' - label
+// '?' - one optional parameter
+// '*' - unknown number of optional parameters
+
 /// script command definitions
 /// for an explanation on args, see add_buildin_func
 struct script_function buildin_func[] = {
+	
+	// - Oboro -----------------------
+	BUILDIN_DEF(mclose,"s"),
+	BUILDIN_DEF(getguildname,"i"),
+	BUILDIN_DEF(successremovecards,"i"),
+	BUILDIN_DEF(CardIsEquipable,"ii"),
+	BUILDIN_DEF(ItemHasSlot,"i"),
+	BUILDIN_DEF(successenchant,"iii"),
+	BUILDIN_DEF(failedenchant,"i"),
+	BUILDIN_DEF(title,"?"),
+	BUILDIN_DEF(setr,"rv?"),
+	BUILDIN_DEF(mapeventwarp, "ssiisiii"),
+	BUILDIN_DEF(ChangeBG,""),
+	BUILDIN_DEF(bg_item,"ii"),
+	BUILDIN_DEF(getitem_map,"iis??"),
+	BUILDIN_DEF(get_unique_id,""),
+
+
 	// NPC interaction
 	BUILDIN_DEF(mes,"s*"),
 	BUILDIN_DEF(next,""),
@@ -24633,7 +24954,7 @@ struct script_function buildin_func[] = {
 	BUILDIN_DEF(setcastledata,"sii"),
 	BUILDIN_DEF(requestguildinfo,"i?"),
 	BUILDIN_DEF(getequipcardcnt,"i"),
-	BUILDIN_DEF(successremovecards,"i"),
+	//BUILDIN_DEF(successremovecards,"i"),
 	BUILDIN_DEF(failedremovecards,"ii"),
 	BUILDIN_DEF(marriage,"s"),
 	BUILDIN_DEF2(wedding_effect,"wedding",""),
@@ -24898,9 +25219,6 @@ struct script_function buildin_func[] = {
 	BUILDIN_DEF(bg_updatescore,"sii"),
 	BUILDIN_DEF(bg_team_updatescore,"ii"),
 	BUILDIN_DEF(bg_team_guildid,"i"),
-	BUILDIN_DEF(bg_getitem,"iii"),
-	BUILDIN_DEF(bg_getkafrapoints,"ii"),
-	BUILDIN_DEF(bg_reward,"iiiiisiii"),
 	BUILDIN_DEF(bgannounce,"s?????"),
 
 	// Instancing
@@ -24987,7 +25305,6 @@ struct script_function buildin_func[] = {
 	BUILDIN_DEF(mergeitem2,"??"),
 	// Enchanting - Costume
 	BUILDIN_DEF(costume,"i"),
-	BUILDIN_DEF(successenchant,"ii"),
 	BUILDIN_DEF(failedenchant,"i"),
 
 	BUILDIN_DEF(npcshopupdate,"sii?"),

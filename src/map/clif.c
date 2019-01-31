@@ -49,6 +49,7 @@
 #include "achievement.h"
 #include "region.h"
 #include "faction.h"
+#include "oboro.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -570,6 +571,8 @@ static int clif_send_sub(struct block_list *bl, va_list ap)
 	}
 
 	if (packet_db[sd->packet_ver][RBUFW(buf,0)].len) { // packet must exist for the client version
+	if( clif_skill_effect_hide(sd,buf) )
+			return 0;
 		memcpy(WFIFOP(fd,0), buf, len);
 		WFIFOSET(fd,len);
 	}
@@ -722,6 +725,7 @@ int clif_send(const uint8* buf, int len, struct block_list* bl, enum send_target
 	case PARTY_WOS:
 	case PARTY_SAMEMAP:
 	case PARTY_SAMEMAP_WOS:
+	case PARTY_BUFF_INFO:
 		if (sd && sd->status.party_id)
 			p = party_search(sd->status.party_id);
 
@@ -736,10 +740,13 @@ int clif_send(const uint8* buf, int len, struct block_list* bl, enum send_target
 				if( sd->bl.id == bl->id && (type == PARTY_WOS || type == PARTY_SAMEMAP_WOS || type == PARTY_AREA_WOS) )
 					continue;
 
-				if( type != PARTY && type != PARTY_WOS && bl->m != sd->bl.m )
+				if( type != PARTY_BUFF_INFO && type != PARTY && type != PARTY_WOS && bl->m != sd->bl.m )
 					continue;
 
 				if( (type == PARTY_AREA || type == PARTY_AREA_WOS) && (sd->bl.x < x0 || sd->bl.y < y0 || sd->bl.x > x1 || sd->bl.y > y1) )
+					continue;
+
+				if( type == PARTY_BUFF_INFO && !sd->state.spb )
 					continue;
 
 				if( packet_db[sd->packet_ver][RBUFW(buf,0)].len )
@@ -786,6 +793,8 @@ int clif_send(const uint8* buf, int len, struct block_list* bl, enum send_target
 		break;
 
 	case SELF:
+		if( clif_skill_effect_hide(sd,buf) )
+			break;
 		if (sd && (fd=sd->fd) && packet_db[sd->packet_ver][RBUFW(buf,0)].len) { // packet must exist for the client version
 			WFIFOHEAD(fd,len);
 			memcpy(WFIFOP(fd,0), buf, len);
@@ -5975,6 +5984,8 @@ int clif_skill_nodamage(struct block_list *src,struct block_list *dst, uint16 sk
 	int offset = 0;
 
 	nullpo_ret(dst);
+	if( clif_skill_effect_hide(BL_CAST(BL_PC,src),buf) )
+		return fail;
 
 	WBUFW(buf,0) = cmd;
 	WBUFW(buf,2) = skill_id;
@@ -7640,10 +7651,14 @@ void clif_party_member_info(struct party_data *p, struct map_session_data *sd)
 void clif_party_info(struct party_data* p, struct map_session_data *sd)
 {
 	unsigned char buf[2+2+NAME_LENGTH+(4+NAME_LENGTH+MAP_NAME_LENGTH_EXT+1+1)*MAX_PARTY];
-	struct map_session_data* party_sd = NULL;
+	struct map_session_data* party_sd = NULL, *target = NULL;
 	int i, c;
+	char output[NAME_LENGTH+10];
 
 	nullpo_retv(p);
+
+	if(!p) return; // Anti-crash [Oboro]
+
 
 	WBUFW(buf,0) = 0xfb;
 	memcpy(WBUFP(buf,4), p->party.name, NAME_LENGTH);
@@ -7663,12 +7678,43 @@ void clif_party_info(struct party_data* p, struct map_session_data *sd)
 	}
 	WBUFW(buf,2) = 28+c*46;
 
-	if(sd) { // send only to self
+	if(sd) 
+	{ // send only to self
 		clif_send(buf, WBUFW(buf,2), &sd->bl, SELF);
-	} else if (party_sd) { // send to whole party
+	} else if (party_sd) 
+	{ // send to whole party
 		clif_send(buf, WBUFW(buf,2), &party_sd->bl, PARTY);
 	}
+
+	for(i = 0; i < MAX_PARTY; i++)
+	{
+		if( (target = p->data[i].sd) )
+		{
+			strcpy(output, "[");
+			if( target->sc.data[SC_BLESSING] ) strcat(output,"B");
+				else strcat(output,"_");
+			if( target->sc.data[SC_INCREASEAGI] ) strcat(output,"A");
+				else strcat(output,"_");
+			if( target->sc.data[SC_CP_WEAPON] && target->sc.data[SC_CP_SHIELD] &&
+				target->sc.data[SC_CP_ARMOR] && target->sc.data[SC_CP_HELM] ) strcat(output,"F");
+				else strcat(output,"_");
+			if( target->sc.data[SC_SPIRIT] ) strcat(output,"S");
+				else strcat(output,"_");
+			if( target->sc.data[SC_DEVOTION] ) strcat(output,"+");
+				else strcat(output,"_");
+			strcat(output, "]");
+			strncat(output, p->data[i].sd->status.name, NAME_LENGTH);
+			safestrncpy((char*)WBUFP(buf,28+i*46+4), output, NAME_LENGTH);
+		}
+	}
+
+	if( sd && sd->state.spb )
+		clif_send(buf, WBUFW(buf,2), &sd->bl, SELF);
+	else if( party_sd )
+		clif_send(buf, WBUFW(buf,2), &party_sd->bl, PARTY_BUFF_INFO);
+
 }
+
 
 
 /// The player's 'party invite' state, sent during login (ZC_PARTY_CONFIG).
@@ -9635,6 +9681,9 @@ void clif_refresh(struct map_session_data *sd)
 {
 	nullpo_retv(sd);
 
+	if ( sub_refresh(sd) < 0 ) // [Oboro]
+		return;
+
 	clif_changemap(sd,sd->bl.m,sd->bl.x,sd->bl.y);
 	clif_inventorylist(sd);
 	if(pc_iscarton(sd)) {
@@ -10631,6 +10680,14 @@ void clif_parse_WantToConnection(int fd, struct map_session_data* sd)
 	session[fd]->session_data = sd;
 
 	pc_setnewpc(sd, account_id, char_id, login_id1, client_tick, sex, fd);
+
+	// Gepard Shield
+	if (is_gepard_active)
+	{
+		gepard_init(fd, GEPARD_MAP);
+		session[fd]->gepard_info.sync_tick = gettick();
+	}
+	// Gepard Shield
 
 #if PACKETVER < 20070521
 	WFIFOHEAD(fd,4);
@@ -15088,6 +15145,7 @@ void clif_parse_FriendsListReply(int fd, struct map_session_data *sd)
 
 /// Request to delete a friend (CZ_DELETE_FRIENDS).
 /// 0203 <account id>.L <char id>.L
+// [Oboro] Emulator: Fix'd WOE BUG
 void clif_parse_FriendsListRemove(int fd, struct map_session_data *sd)
 {
 	struct map_session_data *f_sd = NULL;
@@ -15108,7 +15166,8 @@ void clif_parse_FriendsListRemove(int fd, struct map_session_data *sd)
 	}
 
 	//remove from friend's list first
-	if( (f_sd = map_id2sd(account_id)) && f_sd->status.char_id == char_id) {
+	if( (f_sd = map_id2sd(account_id)) && f_sd->status.char_id == char_id) 
+	{
 		for (i = 0; i < MAX_FRIENDS &&
 			(f_sd->status.friends[i].char_id != sd->status.char_id || f_sd->status.friends[i].account_id != sd->status.account_id); i++);
 
@@ -15149,7 +15208,6 @@ void clif_parse_FriendsListRemove(int fd, struct map_session_data *sd)
 	WFIFOL(fd,6) = char_id;
 	WFIFOSET(fd, packet_len(0x20a));
 }
-
 
 /// /pvpinfo list (ZC_ACK_PVPPOINT).
 /// 0210 <char id>.L <account id>.L <win point>.L <lose point>.L <point>.L
@@ -17176,6 +17234,28 @@ void clif_parse_mercenary_action(int fd, struct map_session_data* sd)
 		return;
 
 	if( option == 2 ) mercenary_delete(sd->md, 2);
+}
+
+bool clif_skill_effect_hide(struct map_session_data *sd, const uint8* buf)
+{
+
+	if( !sd )
+		return false;
+	else
+	{
+		if( packet_db[sd->packet_ver][RBUFW(buf,0)].len )
+		{
+			unsigned int var = RBUFW(buf,2);
+			if( RBUFW(buf,0) == 0x117 || RBUFW(buf,0) == 0x11a || RBUFW(buf,0) == 0x1de )
+			{
+				if( var == AL_HEAL || var == SL_KAITE || var == SL_KAUPE || 
+					var == CR_SLIMPITCHER )
+					return ( pc_readglobalreg(sd,"PC_SKILL_EFFECT_HIDE") > 0 );
+			}
+
+		}
+	}
+	return false;
 }
 
 
@@ -19962,6 +20042,14 @@ static int clif_parse(int fd)
 	// identify client's packet version
 	if (sd) {
 		packet_ver = sd->packet_ver;
+
+		// Gepard Shield
+		if (is_gepard_active == true && clif_gepard_process_packet(sd) == true)
+		{
+			return 0;
+		}
+		// Gepard Shield
+
 	} else {
 		// check authentification packet to know packet version
 		packet_ver = clif_guess_PacketVer(fd, 0, &err);
@@ -20849,4 +20937,78 @@ void do_init_clif(void) {
 void do_final_clif(void) {
 	clif_final_auras();
 	ers_destroy(delay_clearunit_ers);
+}
+
+
+int clif_gepard_timer_kick(int tid, unsigned int tick, int id, intptr_t data)
+{
+	struct map_session_data* sd = map_id2sd(id);
+
+	if (sd != NULL)
+	{
+		clif_GM_kick(NULL, sd);
+	}
+
+	return 0;
+}
+
+bool clif_gepard_process_packet(struct map_session_data* sd)
+{
+	int fd = sd->fd;
+	int packet_id = RFIFOW(fd, 0);
+	uint32 diff_time = gettick() - session[fd]->gepard_info.sync_tick;
+
+	if (diff_time > 40000)
+	{
+		clif_authfail_fd(sd->fd, 15);
+	}
+
+	if (packet_id <= MAX_PACKET_DB)
+	{
+		return gepard_process_packet(fd, session[fd]->rdata + session[fd]->rdata_pos, packet_db[sd->packet_ver][packet_id].len, &session[fd]->recv_crypt);
+	}
+
+	switch (packet_id)
+	{
+		case CS_GEPARD_INIT_ACK:
+		{
+			gepard_process_packet(fd, session[fd]->rdata + session[fd]->rdata_pos, 0, &session[fd]->recv_crypt);
+
+			if (session[fd]->gepard_info.is_init_ack_received == false)
+			{
+				return true;
+			}
+
+			if (session_isActive(fd) && pc_get_group_id(sd) != 99)
+			{
+				const uint16 packet_info_size = 6;
+
+				if (session[fd]->gepard_info.gepard_shield_version < min_allowed_gepard_version)
+				{
+					WFIFOHEAD(fd, packet_info_size);
+					WFIFOW(fd, 0) = SC_GEPARD_INFO;
+					WFIFOW(fd, 2) = packet_info_size;
+					WFIFOW(fd, 4) = GEPARD_INFO_OLD_VERSION;
+					WFIFOSET(fd, packet_info_size);
+
+					add_timer(gettick() + 5000, clif_gepard_timer_kick, sd->bl.id, 0);
+				}
+				else if (session[fd]->gepard_info.grf_hash_number != allowed_gepard_grf_hash)
+				{
+					WFIFOHEAD(fd, packet_info_size);
+					WFIFOW(fd, 0) = SC_GEPARD_INFO;
+					WFIFOW(fd, 2) = packet_info_size;
+					WFIFOW(fd, 4) = GEPARD_WRONG_GRF_HASH;
+					WFIFOSET(fd, packet_info_size);
+
+					add_timer(gettick() + 5000, clif_gepard_timer_kick, sd->bl.id, 0);
+				}	
+			}
+
+			return true;
+		}
+		break;
+	}
+
+	return gepard_process_packet(fd, session[fd]->rdata + session[fd]->rdata_pos, 0, &session[fd]->recv_crypt);
 }
